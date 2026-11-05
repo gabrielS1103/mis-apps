@@ -11,5 +11,28 @@ LetrasEnVivo/.gradle/
 LetrasEnVivo/.idea/
 LetrasEnVivo/.kotlin/
 LetrasEnVivo/local.properties
+
+# SubtitulosEnVivo (Android): igual que LetrasEnVivo, más la compilación nativa (.cxx)
+SubtitulosEnVivo/build/
+SubtitulosEnVivo/app/build/
+SubtitulosEnVivo/app/.cxx/
+SubtitulosEnVivo/.gradle/
+SubtitulosEnVivo/.idea/
+SubtitulosEnVivo/.kotlin/
+SubtitulosEnVivo/local.properties
 *.apk
 *.aab
+
+# AuditorBots: entorno de Python y lo que genera al auditar (las auditorías contienen datos de terceros)
+AuditorBots/.venv/
+__pycache__/
+.pytest_cache/
+AuditorBots/ejemplos/auditoria.sqlite
+AuditorBots/ejemplos/informe.html
+AuditorBots/ejemplos/muestra.html
+AuditorBots/ejemplos/perfiles.csv
+AuditorBots/ejemplos/perfiles.json
+AuditorBots/auditorias/
+
+# ArreglarGFN: copia local del código de GeForce NOW (es de NVIDIA, no se publica)
+ArreglarGFN/respaldo/
