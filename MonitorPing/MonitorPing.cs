@@ -1963,6 +1963,13 @@ namespace MonitorPing
         ConfigForm formAbierto;
         PruebaRatonForm pruebaAbierta;
         PruebaPerdidaForm pruebaPerdida;
+        RutaEnVivo ruta = new RutaEnVivo();
+        RutaForm rutaForm;
+        int cortesPrevios;
+        DateTime inicioMinuto = DateTime.MinValue;
+        long ultimoSegundoMinuto = -1;
+        double sumaMbps;
+        int segundosMinuto;
 
         public TrayContext()
         {
@@ -2007,6 +2014,7 @@ namespace MonitorPing
             menu.Items.Add(itemInicio);
             menu.Items.Add("Configuración...", null, delegate { AbrirConfig(); });
             menu.Items.Add("Prueba de pérdida de paquetes...", null, delegate { AbrirPruebaPerdida(); });
+            menu.Items.Add("Ruta en vivo (dónde se pierde)...", null, delegate { AbrirRuta(); });
             menu.Items.Add("Probar ratón...", null, delegate { AbrirPruebaRaton(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(itemAnalisis);
@@ -2047,6 +2055,7 @@ namespace MonitorPing
 
             // Lectura del stream real: necesita administrador
             analisisActivo = Native.EsAdmin() && analizador.Iniciar();
+            ruta.Iniciar();
 
             eeuu.FijarDestino(cfg.ServidorEEUU, 0, false);
             ActualizarRouter();
@@ -2201,6 +2210,7 @@ namespace MonitorPing
             Estado eg = gfn.Leer(), ex = xcloud.Leer(), eu = eeuu.Leer(), er = router.Leer();
             bool streamGfn = stream.Activo && EsGfn(stream.Remoto);
             bool streamXcloud = stream.Activo && !streamGfn;
+            FijarRuta(eg, streamGfn);
 
             List<Fila> filas = new List<Fila>();
             Fila fg = null, fx = null;
@@ -2246,6 +2256,52 @@ namespace MonitorPing
                 if (f.Unidad == "ms" || f.Valor == "X") partes.Add(f.Corto + " " + f.Valor + f.Unidad + (f.Corto1 != "" && f.Corto1 != "0%" ? " " + f.Corto1 : ""));
             string tip = partes.Count > 0 ? string.Join(" | ", partes.ToArray()) : "MonitorPing";
             tray.Text = tip.Length > 63 ? tip.Substring(0, 63) : tip;
+        }
+
+        // La ruta en vivo se mide sola mientras juegas, o cuando su ventana está abierta
+        void FijarRuta(Estado eg, bool streamGfn)
+        {
+            // Un paquete suelto perdido lo recupera el propio stream: cuenta como malo un segundo con 1 % o más, o un corte
+            bool mal = stream.Activo && (stream.PerdidaSeg >= 1 || stream.Cortes > cortesPrevios);
+            cortesPrevios = stream.Activo ? stream.Cortes : 0;
+            string contexto = "";
+            if (stream.Activo)
+            {
+                string svc = streamGfn ? "GFN" : "xCloud";
+                contexto = svc + " " + stream.Remoto + " · " + (vpn != null ? "por VPN" : "sin VPN") + " · " + stream.Mbps.ToString("0") + " Mbps · pérdida 30 s " +
+                           Calidad.Porcentaje(stream.Perdida30) + " · " + TextoCortes(stream.Cortes) + (stream.Cortes > 0 ? " (máx " + stream.CorteMax + " ms)" : "") +
+                           (stream.Rtt >= 0 ? " · ping " + stream.Rtt + " ms" : "");
+                AnotarMinuto(svc);
+            }
+            else inicioMinuto = DateTime.MinValue;
+            string elegido = rutaForm != null ? rutaForm.DestinoElegido : null;
+            string destino, servicio;
+            if (elegido != null) { destino = elegido; servicio = "elegido a mano"; }
+            else if (stream.Activo) { destino = stream.Remoto; servicio = "jugando " + (streamGfn ? "GFN" : "xCloud"); }
+            else if (eg.HayDestino) { destino = eg.Host; servicio = senalGfn ? "jugando GFN" : "zona de GFN antes de jugar"; }
+            else { destino = ""; servicio = ""; }
+            ruta.Fijar(destino, servicio, rutaForm != null || stream.Activo || senalGfn, mal, contexto, stream.Activo && vpn != null);
+        }
+
+        // Cada minuto de partida deja una línea en el registro: así se comparan horas, Mbps y con/sin VPN
+        void AnotarMinuto(string svc)
+        {
+            DateTime ahora = DateTime.Now;
+            if (inicioMinuto == DateTime.MinValue) { inicioMinuto = ahora; sumaMbps = 0; segundosMinuto = 0; }
+            if (stream.Segundo != ultimoSegundoMinuto)
+            {
+                ultimoSegundoMinuto = stream.Segundo;
+                sumaMbps += stream.Mbps;
+                segundosMinuto++;
+            }
+            if ((ahora - inicioMinuto).TotalSeconds < 60) return;
+            RutaEnVivo.Anotar(ahora.ToString("yyyy-MM-dd HH:mm:ss") + " · minuto de partida · " + svc + " " + stream.Remoto + " · " +
+                (vpn != null ? "por VPN (" + vpn + ")" : "sin VPN") + " · " + (sumaMbps / Math.Max(1, segundosMinuto)).ToString("0") + " Mbps promedio · pérdida 60 s " +
+                Calidad.Porcentaje(stream.Perdida60) + " · " + TextoCortes(stream.Cortes) + (stream.Cortes > 0 ? " (máx " + stream.CorteMax + " ms)" : "") +
+                (stream.Rtt >= 0 ? " · ping " + stream.Rtt + " ms" : ""));
+            inicioMinuto = ahora;
+            sumaMbps = 0;
+            segundosMinuto = 0;
         }
 
         static string ValorTexto(Estado e)
@@ -2400,6 +2456,19 @@ namespace MonitorPing
             pruebaPerdida.Show();
         }
 
+        void AbrirRuta()
+        {
+            if (rutaForm != null)
+            {
+                if (rutaForm.WindowState == FormWindowState.Minimized) rutaForm.WindowState = FormWindowState.Normal;
+                rutaForm.Activate();
+                return;
+            }
+            rutaForm = new RutaForm(ruta, vpn);
+            rutaForm.FormClosed += delegate { rutaForm.Dispose(); rutaForm = null; };
+            rutaForm.Show();
+        }
+
         void AbrirPruebaRaton()
         {
             if (pruebaAbierta != null) { pruebaAbierta.Activate(); return; }
@@ -2433,6 +2502,8 @@ namespace MonitorPing
                     return "Stream de " + svc + " estable (" + Calidad.Porcentaje(stream.Perdida30) + " pérdida)";
                 }
                 c = Calidad.Rojo;
+                string donde = ruta.LugarReciente;
+                if (donde != null) return "Pérdidas desde: " + (donde.Length > 38 ? donde.Substring(0, 37) + "…" : donde);
                 if (routerMal) return "Cortes por tu Wi-Fi (el router también falla)";
                 if (eeuuMal) return "Falla tu internet (también hacia EE.UU.)";
                 return "Pérdidas del servidor de " + svc + " (tu internet va bien)";
@@ -2727,6 +2798,8 @@ namespace MonitorPing
         {
             timer.Stop();
             if (pruebaPerdida != null) pruebaPerdida.Close();
+            if (rutaForm != null) rutaForm.Close();
+            ruta.Parar();
             Native.UnhookWinEvent(ganchoMostrar);
             Native.UnhookWinEvent(ganchoPrimerPlano);
             gfn.Parar();
@@ -4007,6 +4080,942 @@ namespace MonitorPing
             c.SelectedIndex = seleccion;
             c.Width = ancho;
             return c;
+        }
+
+        static Label Etiqueta(string texto, int ancho, bool tenue)
+        {
+            Label l = new Label();
+            l.Text = texto;
+            l.AutoSize = true;
+            l.MaximumSize = new Size(ancho, 0);
+            if (tenue) l.ForeColor = SystemColors.GrayText;
+            return l;
+        }
+
+        static Label EtiquetaCentrada(string texto)
+        {
+            Label l = new Label();
+            l.Text = texto;
+            l.AutoSize = true;
+            l.Margin = new Padding(3, 7, 3, 3);
+            return l;
+        }
+
+        static FlowLayoutPanel Horizontal()
+        {
+            FlowLayoutPanel p = new FlowLayoutPanel();
+            p.FlowDirection = FlowDirection.LeftToRight;
+            p.WrapContents = false;
+            p.AutoSize = true;
+            p.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            p.Margin = new Padding(0, 3, 0, 3);
+            return p;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) reloj.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    // Trazado de ruta en vivo: sondea cada salto hacia el servidor de juego una vez por segundo, saliendo por la conexión
+    // física (Wi-Fi o cable) aunque haya una VPN, y localiza en qué salto empiezan la pérdida o las subidas de ping
+    class RutaEnVivo
+    {
+        public class Salto
+        {
+            public int Ttl;
+            public string Ip;              // null = el salto no responde
+            public string Red = "";        // dueño de la red (por su ASN), "tu router" o "tu proveedor"
+            public double Perdida = -1, Perdida10 = -1; // % en los últimos 60 s y 10 s
+            public int Prom = -1, Max = -1, Ultimo = -1;
+            public bool Inicio;            // aquí empieza el problema
+            public string Lugar { get { return Ip == null ? "salto " + Ttl : Red + " (salto " + Ttl + ")"; } }
+        }
+
+        public class Evento
+        {
+            public DateTime Momento;
+            public string Tipo, Lugar;
+        }
+
+        public class Vista
+        {
+            public string Destino = "", Ip = "", Origen = "", Estado = "";
+            public Salto[] Saltos = new Salto[0];
+            public Salto Final = new Salto();
+            public string Diagnostico = "";
+            public int Nivel;              // 0 bien, 1 aviso, 2 mal, -1 sin datos
+            public string Lugar;           // dónde empieza el último problema detectado
+            public DateTime LugarCuando;
+            public Evento[] Eventos = new Evento[0];
+        }
+
+        class Interno
+        {
+            public int Ttl;
+            public string Ip;
+            public readonly int[] Rtt = new int[N];
+            public string Red = "";
+            public bool Privado;
+        }
+
+        const int N = 120;          // rondas guardadas (2 minutos)
+        const int Ventana = 60;     // rondas que se analizan
+        const int Perdido = -1, SinSonda = -2;
+        const int TraceCada = 600;  // segundos entre trazados completos
+
+        static readonly string[] MarcasVpn = { "wintun", "tap-", "wireguard", "vpn", "hotspot", "openvpn", "nordlynx", "warp",
+            "zerotier", "tailscale", "tunnel", "virtual", "hyper-v", "vmware", "virtualbox", "loopback" };
+        static readonly Dictionary<string, string> redes = new Dictionary<string, string>();
+        public static string ArchivoRegistro
+        {
+            get
+            {
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "MonitorPing");
+                Directory.CreateDirectory(dir);
+                return Path.Combine(dir, "ruta.log");
+            }
+        }
+
+        readonly object bloqueo = new object();
+        Thread hilo;
+        volatile bool corriendo, activo, retrazar;
+        volatile bool streamMal;     // el stream perdió 1 % o más, o se cortó, en el último segundo
+        volatile bool porVpn;        // se juega por la VPN: la ruta del juego no es la que miden las sondas
+        string contexto = "";        // cómo va el stream (se anota con cada evento)
+        string destinoPedido = "", servicioPedido = "";
+        string destinoActual = "", ipActual = "", origen = "", gateway = "", estado = "";
+        List<Interno> saltos = new List<Interno>();
+        readonly int[] rttFinal = new int[N];
+        readonly bool[] malStream = new bool[N];
+        long ronda;                  // rondas hechas desde el último cambio de ruta
+        DateTime ultimoTrace = DateTime.MinValue, ultimoRegistro = DateTime.MinValue;
+        string lugar;
+        DateTime lugarCuando;
+        readonly List<Evento> eventos = new List<Evento>();
+        Vista ultima = new Vista();
+
+        public void Iniciar()
+        {
+            if (hilo != null) return;
+            corriendo = true;
+            hilo = new Thread(Bucle);
+            hilo.IsBackground = true;
+            hilo.Name = "RutaEnVivo";
+            hilo.Start();
+        }
+
+        public void Parar() { corriendo = false; }
+
+        // Se llama cada segundo: a dónde trazar, si hay que medir y si el stream tuvo problemas en ese segundo
+        public void Fijar(string destino, string servicio, bool medir, bool malEsteSegundo, string contextoStream, bool jugandoPorVpn)
+        {
+            lock (bloqueo)
+            {
+                destinoPedido = destino ?? "";
+                servicioPedido = servicio ?? "";
+                contexto = contextoStream ?? "";
+            }
+            activo = medir && destino != "";
+            porVpn = jugandoPorVpn;
+            if (malEsteSegundo) streamMal = true;
+        }
+
+        // Añade una línea suelta al registro (el resumen de cada minuto de partida)
+        public static void Anotar(string linea)
+        {
+            try { File.AppendAllText(ArchivoRegistro, linea + Environment.NewLine, Encoding.UTF8); }
+            catch { }
+        }
+
+        public void Retrazar() { retrazar = true; }
+
+        public Vista Leer() { lock (bloqueo) return ultima; }
+
+        // Lugar del problema si se detectó en los últimos 90 s
+        public string LugarReciente
+        {
+            get { lock (bloqueo) return lugar != null && (DateTime.Now - lugarCuando).TotalSeconds < 90 ? lugar : null; }
+        }
+
+        void Bucle()
+        {
+            while (corriendo)
+            {
+                if (!activo) { Thread.Sleep(300); continue; }
+                Stopwatch sw = Stopwatch.StartNew();
+                try
+                {
+                    string pedido, servicio;
+                    lock (bloqueo) { pedido = destinoPedido; servicio = servicioPedido; }
+                    if (pedido != destinoActual || retrazar || saltos.Count == 0 || (DateTime.Now - ultimoTrace).TotalSeconds > TraceCada)
+                    {
+                        retrazar = false;
+                        Trazar(pedido, servicio);
+                    }
+                    if (ipActual != "") Ronda();
+                    Analizar();
+                }
+                catch (Exception ex) { lock (bloqueo) estado = "Error: " + ex.Message; }
+                int resto = 1000 - (int)sw.ElapsedMilliseconds;
+                if (resto > 0) Thread.Sleep(resto);
+            }
+        }
+
+        // Interfaz física con puerta de enlace (no la VPN): de ahí salen las sondas
+        static bool SalidaFisica(out string local, out string gw)
+        {
+            local = gw = "";
+            string wifiLocal = "", wifiGw = "";
+            foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != OperationalStatus.Up) continue;
+                bool cable = ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet || ni.NetworkInterfaceType == NetworkInterfaceType.GigabitEthernet;
+                bool wifi = ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
+                if (!cable && !wifi) continue;
+                string t = (ni.Name + " " + ni.Description).ToLowerInvariant();
+                bool esVpn = false;
+                foreach (string m in MarcasVpn) if (t.Contains(m)) { esVpn = true; break; }
+                if (esVpn) continue;
+                IPInterfaceProperties p = ni.GetIPProperties();
+                string g = "", l = "";
+                foreach (GatewayIPAddressInformation x in p.GatewayAddresses)
+                    if (x.Address.AddressFamily == AddressFamily.InterNetwork && !x.Address.Equals(IPAddress.Any)) { g = x.Address.ToString(); break; }
+                foreach (UnicastIPAddressInformation u in p.UnicastAddresses)
+                    if (u.Address.AddressFamily == AddressFamily.InterNetwork) { l = u.Address.ToString(); break; }
+                if (g == "" || l == "") continue;
+                if (cable) { local = l; gw = g; return true; } // el cable tiene prioridad, como en Windows
+                if (wifiLocal == "") { wifiLocal = l; wifiGw = g; }
+            }
+            local = wifiLocal;
+            gw = wifiGw;
+            return local != "";
+        }
+
+        void Trazar(string destino, string servicio)
+        {
+            ultimoTrace = DateTime.Now;
+            string local, gw;
+            if (!SalidaFisica(out local, out gw))
+            {
+                lock (bloqueo) { estado = "No hay conexión Wi-Fi ni por cable"; ipActual = ""; destinoActual = destino; }
+                return;
+            }
+            string ip = "";
+            IPAddress directa;
+            if (IPAddress.TryParse(destino, out directa)) ip = directa.ToString();
+            else
+            {
+                try
+                {
+                    foreach (IPAddress a in System.Net.Dns.GetHostAddresses(destino))
+                        if (a.AddressFamily == AddressFamily.InterNetwork) { ip = a.ToString(); break; }
+                }
+                catch { }
+            }
+            if (ip == "")
+            {
+                lock (bloqueo) { estado = "No se pudo resolver " + destino; ipActual = ""; destinoActual = destino; }
+                return;
+            }
+            lock (bloqueo) estado = "Trazando la ruta...";
+
+            // 3 sondas por salto, todas a la vez; se corta al llegar o tras 5 saltos mudos seguidos
+            List<Interno> nuevos = new List<Interno>();
+            int mudos = 0;
+            for (int ttl = 1; ttl <= 30 && corriendo; ttl++)
+            {
+                int[] sinUso;
+                string[] r = Icmp.Varias(local, ip, new int[] { ttl, ttl, ttl }, 1200, out sinUso);
+                string visto = null;
+                foreach (string x in r) if (x != null) { visto = x; break; }
+                Interno s = new Interno();
+                s.Ttl = ttl;
+                s.Ip = visto;
+                nuevos.Add(s);
+                if (visto == ip) { nuevos.RemoveAt(nuevos.Count - 1); break; } // el servidor responde al eco: es el final
+                mudos = visto == null ? mudos + 1 : 0;
+                if (mudos >= 5) break;
+            }
+            while (nuevos.Count > 0 && nuevos[nuevos.Count - 1].Ip == null) nuevos.RemoveAt(nuevos.Count - 1);
+
+            foreach (Interno s in nuevos)
+            {
+                if (s.Ip == null) continue;
+                s.Privado = EsPrivada(s.Ip);
+                if (s.Ip == gw) s.Red = "tu router";
+                else if (s.Privado) s.Red = "tu proveedor (red interna)";
+                else
+                {
+                    string red;
+                    lock (redes) redes.TryGetValue(s.Ip, out red);
+                    s.Red = red ?? "...";
+                    if (red == null) BuscarRed(s.Ip);
+                }
+            }
+
+            lock (bloqueo)
+            {
+                bool igual = nuevos.Count == saltos.Count && destino == destinoActual;
+                for (int i = 0; igual && i < nuevos.Count; i++) igual = nuevos[i].Ip == saltos[i].Ip;
+                if (!igual)
+                {
+                    saltos = nuevos;
+                    ronda = 0;
+                }
+                destinoActual = destino;
+                ipActual = ip;
+                origen = local;
+                gateway = gw;
+                estado = servicio;
+            }
+        }
+
+        void Ronda()
+        {
+            List<Interno> lista;
+            string ip, local;
+            lock (bloqueo) { lista = saltos; ip = ipActual; local = origen; }
+            int[] ttls = new int[lista.Count];
+            for (int i = 0; i < lista.Count; i++) ttls[i] = lista[i].Ip != null ? lista[i].Ttl : 0;
+
+            // El servidor final se mide con TCP 443 (los de GFN y xCloud no responden al ping), a la vez que los saltos
+            Socket tcp = null;
+            IAsyncResult ar = null;
+            Stopwatch reloj = Stopwatch.StartNew();
+            try
+            {
+                tcp = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                tcp.Bind(new IPEndPoint(IPAddress.Parse(local), 0));
+                ar = tcp.BeginConnect(IPAddress.Parse(ip), 443, null, null);
+            }
+            catch { }
+            int[] tiempos;
+            string[] r = Icmp.Varias(local, ip, ttls, 900, out tiempos);
+            int final = Perdido;
+            if (ar != null)
+            {
+                int queda = Math.Max(0, 900 - (int)reloj.ElapsedMilliseconds);
+                if (ar.AsyncWaitHandle.WaitOne(queda))
+                {
+                    try { tcp.EndConnect(ar); final = (int)Math.Round(reloj.Elapsed.TotalMilliseconds); }
+                    catch { }
+                }
+            }
+            if (tcp != null) tcp.Close();
+
+            lock (bloqueo)
+            {
+                if (lista != saltos) return; // la ruta cambió mientras tanto
+                int k = (int)(ronda % N);
+                for (int i = 0; i < lista.Count; i++)
+                {
+                    if (ttls[i] == 0) { lista[i].Rtt[k] = SinSonda; continue; }
+                    lista[i].Rtt[k] = r[i] == null ? Perdido : tiempos[i];
+                }
+                rttFinal[k] = final;
+                malStream[k] = streamMal;
+                streamMal = false;
+                ronda++;
+            }
+        }
+
+        // Pérdida o subida de ping que empieza en un salto y sigue en todos los siguientes. Si un router solo pierde o tarda
+        // al contestar (lo hacen muchos para protegerse) pero los siguientes van bien, no cuenta: el tráfico pasa por él sin problema
+        void Analizar()
+        {
+            lock (bloqueo)
+            {
+                Vista v = new Vista();
+                v.Destino = destinoActual;
+                v.Ip = ipActual;
+                v.Origen = origen;
+                v.Estado = estado;
+                int n = (int)Math.Min(ronda, Ventana);
+                Salto[] vs = new Salto[saltos.Count];
+                for (int i = 0; i < saltos.Count; i++)
+                {
+                    Interno s = saltos[i];
+                    string red;
+                    if (s.Red == "...") { lock (redes) if (redes.TryGetValue(s.Ip, out red) && red != null) s.Red = red; }
+                    vs[i] = Resumir(s.Rtt, n);
+                    vs[i].Ttl = s.Ttl;
+                    vs[i].Ip = s.Ip;
+                    vs[i].Red = s.Ip == null ? "no responde" : s.Red;
+                }
+                v.Saltos = vs;
+                v.Final = Resumir(rttFinal, n);
+                v.Final.Ip = ipActual;
+                v.Final.Red = "servidor (TCP 443)";
+
+                v.Nivel = -1;
+                if (n >= 10 && porVpn)
+                    v.Diagnostico = "Juegas por la VPN: el juego no va por esta ruta, así que no se localiza el tramo. Cada minuto se anota cómo va el stream.";
+                else if (n >= 10)
+                {
+                    // Rondas malas: el stream perdió/cortó, o el servidor no contestó (si normalmente contesta)
+                    int responde = 0, minFinal = int.MaxValue;
+                    for (int j = 0; j < Math.Min(ronda, N); j++)
+                        if (rttFinal[j] >= 0) minFinal = Math.Min(minFinal, rttFinal[j]);
+                    for (int j = 0; j < n; j++) if (rttFinal[Idx(j)] >= 0) responde++;
+                    bool finalCuenta = responde >= n / 2;
+                    bool[] mal = new bool[n], pico = new bool[n];
+                    int nMal = 0, nPico = 0, malRecientes = 0, picosRecientes = 0;
+                    for (int j = 0; j < n; j++)
+                    {
+                        int k = Idx(j);
+                        // El aviso del stream llega con hasta 1 s de retraso: también cuenta para la ronda anterior
+                        bool ms = malStream[k] || (j > 0 && malStream[Idx(j - 1)]);
+                        mal[j] = ms || (finalCuenta && rttFinal[k] == Perdido);
+                        pico[j] = finalCuenta && rttFinal[k] >= 0 && rttFinal[k] - minFinal >= 25;
+                        if (mal[j]) { nMal++; if (j < 10) malRecientes++; }
+                        if (pico[j]) { nPico++; if (j < 10) picosRecientes++; }
+                    }
+
+                    string tipo = null;
+                    int inicio = -2; // -1 = después del último salto visible
+                    int sostenida = InicioPerdidaSostenida(vs);
+                    if (nMal >= 3 && n - nMal >= 5)
+                    {
+                        tipo = "pérdida";
+                        inicio = InicioPerdida(mal, n);
+                        if (inicio < 0 && sostenida >= 0) inicio = sostenida;
+                    }
+                    else if (sostenida >= 0) { tipo = "pérdida en la ruta"; inicio = sostenida; }
+                    else if (nPico >= 3 && n - nPico >= 5) { tipo = "subidas de ping"; inicio = InicioPico(pico, n, minFinal); }
+                    bool sostenidaReciente = tipo == "pérdida en la ruta" && vs[inicio].Perdida10 >= 10;
+
+                    if (tipo == null)
+                    {
+                        v.Nivel = 0;
+                        v.Diagnostico = "Ruta limpia: sin pérdida ni subidas de ping en el último minuto";
+                    }
+                    else
+                    {
+                        string donde;
+                        if (inicio >= 0) { vs[inicio].Inicio = true; donde = vs[inicio].Lugar; }
+                        else
+                        {
+                            Salto ultimoVisible = null;
+                            foreach (Salto s in vs) if (s.Ip != null) ultimoVisible = s;
+                            donde = ultimoVisible != null ? "después de " + ultimoVisible.Lugar + ", en el servidor o su red" : "el servidor o su red";
+                        }
+                        v.Nivel = 2;
+                        v.Diagnostico = char.ToUpper(tipo[0]) + tipo.Substring(1) + " · empieza en: " + donde;
+                        if (malRecientes >= 2 || picosRecientes >= 2 || sostenidaReciente)
+                        {
+                            lugar = donde;
+                            lugarCuando = DateTime.Now;
+                            if ((DateTime.Now - ultimoRegistro).TotalSeconds >= 60)
+                            {
+                                ultimoRegistro = DateTime.Now;
+                                Evento e = new Evento();
+                                e.Momento = DateTime.Now;
+                                e.Tipo = tipo;
+                                e.Lugar = donde;
+                                eventos.Insert(0, e);
+                                if (eventos.Count > 50) eventos.RemoveAt(eventos.Count - 1);
+                                Registrar(e, v);
+                            }
+                        }
+                    }
+                }
+                else v.Diagnostico = ronda == 0 ? "" : "Midiendo... (" + n + " de 10 s)";
+                v.Lugar = lugar;
+                v.LugarCuando = lugarCuando;
+                v.Eventos = eventos.ToArray();
+                ultima = v;
+            }
+        }
+
+        // Pérdida de las sondas que empieza en un salto y sigue en todos los siguientes (al menos dos saltos con respuesta).
+        // Si solo pierde el último salto puede ser ese router limitando sus respuestas, así que no cuenta
+        static int InicioPerdidaSostenida(Salto[] vs)
+        {
+            double[] d = new double[vs.Length];
+            int ultimo = -1;
+            for (int i = 0; i < vs.Length; i++)
+            {
+                d[i] = vs[i].Ip == null || vs[i].Perdida < 0 ? double.NaN : vs[i].Perdida;
+                if (!double.IsNaN(d[i])) ultimo = i;
+            }
+            int inicio = PrimeroQueSigue(d, 3.0);
+            return inicio >= 0 && inicio < ultimo ? inicio : -1;
+        }
+
+        // Índice de la ronda j (0 = la última) en el anillo
+        int Idx(int j) { return (int)((ronda - 1 - j) % N); }
+
+        Salto Resumir(int[] rtt, int n)
+        {
+            Salto s = new Salto();
+            int env = 0, perd = 0, env10 = 0, perd10 = 0, suma = 0, ok = 0, max = -1;
+            for (int j = 0; j < n; j++)
+            {
+                int v = rtt[Idx(j)];
+                if (v == SinSonda) continue;
+                env++;
+                if (j < 10) env10++;
+                if (v == Perdido) { perd++; if (j < 10) perd10++; continue; }
+                suma += v;
+                ok++;
+                if (v > max) max = v;
+                if (j == 0) s.Ultimo = v;
+            }
+            if (env > 0) s.Perdida = 100.0 * perd / env;
+            if (env10 > 0) s.Perdida10 = 100.0 * perd10 / env10;
+            if (ok > 0) { s.Prom = (int)Math.Round((double)suma / ok); s.Max = max; }
+            return s;
+        }
+
+        // Primer salto desde el que la pérdida en las rondas malas (frente a las buenas) se mantiene hasta el último
+        int InicioPerdida(bool[] mal, int n)
+        {
+            double[] d = new double[saltos.Count];
+            for (int i = 0; i < saltos.Count; i++)
+            {
+                d[i] = double.NaN;
+                if (saltos[i].Ip == null) continue;
+                int eb = 0, pb = 0, eg = 0, pg = 0;
+                for (int j = 0; j < n; j++)
+                {
+                    int v = saltos[i].Rtt[Idx(j)];
+                    if (v == SinSonda) continue;
+                    if (mal[j]) { eb++; if (v == Perdido) pb++; }
+                    else { eg++; if (v == Perdido) pg++; }
+                }
+                if (eb > 0 && eg > 0) d[i] = (double)pb / eb - (double)pg / eg;
+            }
+            return PrimeroQueSigue(d, 0.3);
+        }
+
+        // Igual con la subida de ping: cuánto más tarda cada salto en las rondas con pico que en las normales
+        int InicioPico(bool[] pico, int n, int minFinal)
+        {
+            double sb = 0, sg = 0;
+            int cb = 0, cg = 0;
+            for (int j = 0; j < n; j++)
+            {
+                int v = rttFinal[Idx(j)];
+                if (v < 0) continue;
+                if (pico[j]) { sb += v; cb++; } else { sg += v; cg++; }
+            }
+            if (cb == 0 || cg == 0) return -1;
+            double subidaFinal = sb / cb - sg / cg;
+            double[] d = new double[saltos.Count];
+            for (int i = 0; i < saltos.Count; i++)
+            {
+                d[i] = double.NaN;
+                if (saltos[i].Ip == null) continue;
+                double b = 0, g = 0;
+                int nb = 0, ng = 0;
+                for (int j = 0; j < n; j++)
+                {
+                    int v = saltos[i].Rtt[Idx(j)];
+                    if (v < 0) continue;
+                    if (pico[j]) { b += v; nb++; } else { g += v; ng++; }
+                }
+                if (nb > 0 && ng > 0) d[i] = (b / nb - g / ng) / Math.Max(1, subidaFinal);
+            }
+            return PrimeroQueSigue(d, 0.5);
+        }
+
+        // El primer salto i tal que él y todos los siguientes superan el umbral (los saltos sin dato no cortan la cadena)
+        static int PrimeroQueSigue(double[] d, double umbral)
+        {
+            int inicio = -1;
+            for (int i = d.Length - 1; i >= 0; i--)
+            {
+                if (double.IsNaN(d[i])) continue;
+                if (d[i] >= umbral) inicio = i;
+                else break;
+            }
+            return inicio;
+        }
+
+        void Registrar(Evento e, Vista v)
+        {
+            try
+            {
+                StringBuilder sb = new StringBuilder();
+                sb.AppendLine(e.Momento.ToString("yyyy-MM-dd HH:mm:ss") + " · " + e.Tipo + " · empieza en: " + e.Lugar);
+                sb.AppendLine("  destino " + v.Destino + " (" + v.Ip + ") desde " + v.Origen);
+                if (contexto != "") sb.AppendLine("  stream: " + contexto);
+                sb.Append(Tabla(v, "  "));
+                sb.AppendLine();
+                File.AppendAllText(ArchivoRegistro, sb.ToString(), Encoding.UTF8);
+            }
+            catch { }
+        }
+
+        public static string Tabla(Vista v, string sangria)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(sangria + string.Format("{0,-5} {1,-16} {2,-34} {3,8} {4,8} {5,5} {6,5}", "Salto", "IP", "Red", "Pérd60s", "Pérd10s", "Prom", "Máx"));
+            List<Salto> filas = new List<Salto>(v.Saltos);
+            filas.Add(v.Final);
+            foreach (Salto s in filas)
+            {
+                string red = s.Red.Length > 34 ? s.Red.Substring(0, 34) : s.Red;
+                sb.AppendLine(sangria + string.Format("{0,-5} {1,-16} {2,-34} {3,8} {4,8} {5,5} {6,5}{7}",
+                    s == v.Final ? "fin" : s.Ttl.ToString(), s.Ip ?? "*", red,
+                    s.Perdida < 0 ? "–" : Calidad.Porcentaje(s.Perdida), s.Perdida10 < 0 ? "–" : Calidad.Porcentaje(s.Perdida10),
+                    s.Prom < 0 ? "–" : s.Prom.ToString(), s.Max < 0 ? "–" : s.Max.ToString(), s.Inicio ? "  <- empieza aquí" : ""));
+            }
+            return sb.ToString();
+        }
+
+        static bool EsPrivada(string ip)
+        {
+            byte[] b = IPAddress.Parse(ip).GetAddressBytes();
+            return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) ||
+                   (b[0] == 100 && b[1] >= 64 && b[1] < 128) || b[0] == 127 || (b[0] == 169 && b[1] == 254);
+        }
+
+        // Dueño de una IP por su ASN, con el servicio DNS público de Team Cymru (solo se envía la IP del router intermedio)
+        static void BuscarRed(string ip)
+        {
+            lock (redes)
+            {
+                if (redes.ContainsKey(ip)) return;
+                redes[ip] = null;
+            }
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                string nombre = "?";
+                try
+                {
+                    string[] b = ip.Split('.');
+                    string origenAsn = DnsTxt.Txt(b[3] + "." + b[2] + "." + b[1] + "." + b[0] + ".origin.asn.cymru.com");
+                    if (origenAsn != null)
+                    {
+                        string asn = origenAsn.Split('|')[0].Trim().Split(' ')[0];
+                        string info = DnsTxt.Txt("AS" + asn + ".asn.cymru.com");
+                        nombre = "AS" + asn;
+                        if (info != null)
+                        {
+                            string n = info.Substring(info.LastIndexOf('|') + 1).Trim();
+                            int guion = n.IndexOf(" - ");
+                            if (guion >= 0) n = n.Substring(guion + 3);
+                            int coma = n.IndexOf(',');
+                            if (coma > 0) n = n.Substring(0, coma);
+                            if (n.Trim() != "") nombre = n.Trim();
+                        }
+                    }
+                }
+                catch { }
+                lock (redes) redes[ip] = nombre;
+            });
+        }
+
+        static class DnsTxt
+        {
+            [DllImport("dnsapi.dll", CharSet = CharSet.Unicode, EntryPoint = "DnsQuery_W")]
+            static extern int DnsQuery(string nombre, ushort tipo, uint opciones, IntPtr extra, out IntPtr resultados, IntPtr reservado);
+            [DllImport("dnsapi.dll")]
+            static extern void DnsRecordListFree(IntPtr lista, int tipo);
+
+            // Primer registro TXT de un nombre, o null
+            public static string Txt(string nombre)
+            {
+                IntPtr res;
+                if (DnsQuery(nombre, 16, 0, IntPtr.Zero, out res, IntPtr.Zero) != 0 || res == IntPtr.Zero) return null;
+                try
+                {
+                    // DNS_RECORD: pNext, pName, wType, wDataLength, Flags, dwTtl, dwReserved y después los datos
+                    int datos = IntPtr.Size * 2 + 16;
+                    for (IntPtr r = res; r != IntPtr.Zero; r = Marshal.ReadIntPtr(r))
+                    {
+                        if (Marshal.ReadInt16(r, IntPtr.Size * 2) != 16) continue;
+                        if (Marshal.ReadInt32(r, datos) < 1) continue;
+                        return Marshal.PtrToStringUni(Marshal.ReadIntPtr(r, datos + IntPtr.Size));
+                    }
+                }
+                finally { DnsRecordListFree(res, 1); }
+                return null;
+            }
+        }
+
+        // Eco ICMP con TTL y dirección de origen elegidos (así sale por el Wi-Fi aunque la VPN capture el resto del tráfico)
+        static class Icmp
+        {
+            [StructLayout(LayoutKind.Sequential)]
+            struct Opciones { public byte Ttl, Tos, Flags, Tamano; public IntPtr Datos; }
+            [StructLayout(LayoutKind.Sequential)]
+            struct Respuesta { public uint Direccion, Estado, Rtt; public ushort Tamano, Reservado; public IntPtr Datos; public Opciones Opc; }
+
+            [DllImport("iphlpapi.dll", SetLastError = true)] static extern IntPtr IcmpCreateFile();
+            [DllImport("iphlpapi.dll")] static extern bool IcmpCloseHandle(IntPtr h);
+            [DllImport("iphlpapi.dll", SetLastError = true)]
+            static extern uint IcmpSendEcho2Ex(IntPtr h, IntPtr evento, IntPtr apc, IntPtr ctx, uint origen, uint destino,
+                byte[] datos, ushort tamano, ref Opciones opc, IntPtr respuesta, uint tamRespuesta, uint timeout);
+            [DllImport("iphlpapi.dll")] static extern uint IcmpParseReplies(IntPtr respuesta, uint tamRespuesta);
+
+            const uint TtlExcedido = 11013;
+            const int TamBuffer = 256;
+            static readonly byte[] Carga = new byte[32];
+
+            static uint Ip(string s) { return BitConverter.ToUInt32(IPAddress.Parse(s).GetAddressBytes(), 0); }
+
+            // Manda todas las sondas a la vez (una por TTL; 0 = no mandar) y devuelve quién contestó en cada una (o null) y en cuántos ms
+            public static string[] Varias(string origen, string destino, int[] ttls, int timeout, out int[] tiempos)
+            {
+                int n = ttls.Length;
+                string[] res = new string[n];
+                tiempos = new int[n];
+                IntPtr h = IcmpCreateFile();
+                IntPtr[] buf = new IntPtr[n];
+                ManualResetEvent[] ev = new ManualResetEvent[n];
+                bool[] enviado = new bool[n];
+                try
+                {
+                    uint o = Ip(origen), d = Ip(destino);
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (ttls[i] <= 0) continue;
+                        buf[i] = Marshal.AllocHGlobal(TamBuffer);
+                        ev[i] = new ManualResetEvent(false);
+                        Opciones opc = new Opciones();
+                        opc.Ttl = (byte)ttls[i];
+                        uint r = IcmpSendEcho2Ex(h, ev[i].SafeWaitHandle.DangerousGetHandle(), IntPtr.Zero, IntPtr.Zero, o, d,
+                            Carga, (ushort)Carga.Length, ref opc, buf[i], TamBuffer, (uint)timeout);
+                        enviado[i] = r != 0 || Marshal.GetLastWin32Error() == 997; // 997 = en curso
+                    }
+                    Stopwatch sw = Stopwatch.StartNew();
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (!enviado[i]) continue;
+                        int queda = Math.Max(0, timeout + 300 - (int)sw.ElapsedMilliseconds);
+                        if (!ev[i].WaitOne(queda)) { buf[i] = IntPtr.Zero; continue; } // sin terminar: no se libera su buffer
+                        if (IcmpParseReplies(buf[i], TamBuffer) == 0) continue;
+                        Respuesta resp = (Respuesta)Marshal.PtrToStructure(buf[i], typeof(Respuesta));
+                        if (resp.Estado != 0 && resp.Estado != TtlExcedido) continue;
+                        res[i] = new IPAddress(resp.Direccion).ToString();
+                        tiempos[i] = (int)resp.Rtt;
+                    }
+                }
+                finally
+                {
+                    for (int i = 0; i < n; i++)
+                    {
+                        if (buf[i] != IntPtr.Zero) Marshal.FreeHGlobal(buf[i]);
+                        if (ev[i] != null) ev[i].Close();
+                    }
+                    IcmpCloseHandle(h);
+                }
+                return res;
+            }
+        }
+    }
+
+    // Ventana de la ruta en vivo: cada salto con su pérdida y su ping, y dónde empieza el problema
+    class RutaForm : VentanaTema
+    {
+        readonly RutaEnVivo ruta;
+        ComboBox cmbDestino;
+        Label lblDestino, lblDiag;
+        ListView lvSaltos, lvEventos;
+        readonly System.Windows.Forms.Timer reloj = new System.Windows.Forms.Timer();
+        readonly List<string> hosts = new List<string>();
+        int eventosMostrados = -1;
+
+        public string DestinoElegido { get { return cmbDestino.SelectedIndex <= 0 ? null : hosts[cmbDestino.SelectedIndex]; } }
+
+        public RutaForm(RutaEnVivo ruta, string vpn)
+        {
+            this.ruta = ruta;
+            Text = "MonitorPing - Ruta en vivo";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            ShowIcon = false;
+            StartPosition = FormStartPosition.CenterScreen;
+            Font = new Font("Segoe UI", 9f);
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+
+            float k;
+            using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) k = g.DpiX / 96f;
+            int ancho = (int)(690 * k);
+
+            FlowLayoutPanel panel = new FlowLayoutPanel();
+            panel.FlowDirection = FlowDirection.TopDown;
+            panel.WrapContents = false;
+            panel.AutoSize = true;
+            panel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panel.Padding = new Padding(12, 10, 12, 10);
+
+            panel.Controls.Add(Etiqueta("Mide cada salto entre tu PC y el servidor una vez por segundo. Una pérdida o subida de ping es real " +
+                "solo si empieza en un salto y sigue en todos los siguientes; si un router pierde pero los de después no, solo contesta lento " +
+                "y el tráfico pasa bien. Mientras juegas se mide solo y cada problema queda guardado en el registro.", ancho, false));
+            if (vpn != null)
+                panel.Controls.Add(Etiqueta("La VPN (" + vpn + ") está activa, pero las sondas salen por tu Wi-Fi/cable: ves la ruta real de tu proveedor.", ancho, true));
+
+            FlowLayoutPanel fila = Horizontal();
+            fila.Controls.Add(EtiquetaCentrada("Destino:"));
+            cmbDestino = new ComboBox();
+            cmbDestino.DropDownStyle = ComboBoxStyle.DropDownList;
+            cmbDestino.Width = (int)(330 * k);
+            cmbDestino.Items.Add("Automático (lo que estés jugando o tu zona de GFN)");
+            hosts.Add(null);
+            for (int i = 0; i < ListaZonas.Gfn.Hosts.Length; i++)
+            {
+                cmbDestino.Items.Add("GFN · " + ListaZonas.Gfn.Nombres[i]);
+                hosts.Add(ListaZonas.Gfn.Hosts[i]);
+            }
+            for (int i = 0; i < ListaZonas.Xcloud.Hosts.Length; i++)
+            {
+                cmbDestino.Items.Add("xCloud · " + ListaZonas.Xcloud.Nombres[i]);
+                hosts.Add(ListaZonas.Xcloud.Hosts[i]);
+            }
+            cmbDestino.SelectedIndex = 0;
+            fila.Controls.Add(cmbDestino);
+            Button btnTrazar = new Button();
+            btnTrazar.Text = "Volver a trazar";
+            btnTrazar.AutoSize = true;
+            btnTrazar.Click += delegate { ruta.Retrazar(); };
+            fila.Controls.Add(btnTrazar);
+            panel.Controls.Add(fila);
+
+            lblDestino = Etiqueta("", ancho, true);
+            panel.Controls.Add(lblDestino);
+
+            lvSaltos = new ListView();
+            lvSaltos.View = View.Details;
+            lvSaltos.FullRowSelect = true;
+            lvSaltos.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            lvSaltos.Width = ancho;
+            lvSaltos.Height = (int)(250 * k);
+            string[] columnas = { "Salto", "IP", "Red", "Pérdida 60 s", "10 s", "Prom", "Máx", "Último" };
+            int[] anchos = { 44, 108, 246, 80, 46, 46, 46, 50 };
+            for (int i = 0; i < columnas.Length; i++)
+                lvSaltos.Columns.Add(columnas[i], (int)(anchos[i] * k), i < 3 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+            panel.Controls.Add(lvSaltos);
+            panel.Controls.Add(Etiqueta("Tiempos en ms. El último renglón es el servidor, medido con TCP 443.", ancho, true));
+
+            lblDiag = Etiqueta("", ancho, false);
+            lblDiag.Font = new Font("Segoe UI Semibold", 9.5f);
+            lblDiag.Margin = new Padding(3, 6, 3, 6);
+            panel.Controls.Add(lblDiag);
+
+            panel.Controls.Add(Etiqueta("Problemas detectados (como máximo uno por minuto):", ancho, false));
+            lvEventos = new ListView();
+            lvEventos.View = View.Details;
+            lvEventos.FullRowSelect = true;
+            lvEventos.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            lvEventos.Width = ancho;
+            lvEventos.Height = (int)(110 * k);
+            lvEventos.Columns.Add("Hora", (int)(70 * k));
+            lvEventos.Columns.Add("Qué", (int)(110 * k));
+            lvEventos.Columns.Add("Empieza en", (int)(480 * k));
+            panel.Controls.Add(lvEventos);
+
+            FlowLayoutPanel botones = Horizontal();
+            botones.Margin = new Padding(0, 8, 0, 4);
+            Button btnCopiar = new Button();
+            btnCopiar.Text = "Copiar tabla";
+            btnCopiar.AutoSize = true;
+            btnCopiar.Click += delegate { Copiar(); };
+            Button btnRegistro = new Button();
+            btnRegistro.Text = "Abrir registro";
+            btnRegistro.AutoSize = true;
+            btnRegistro.Click += delegate
+            {
+                try
+                {
+                    if (!File.Exists(RutaEnVivo.ArchivoRegistro)) File.WriteAllText(RutaEnVivo.ArchivoRegistro, "", Encoding.UTF8);
+                    Process.Start("notepad.exe", "\"" + RutaEnVivo.ArchivoRegistro + "\"");
+                }
+                catch { }
+            };
+            botones.Controls.Add(btnCopiar);
+            botones.Controls.Add(btnRegistro);
+            panel.Controls.Add(botones);
+
+            Controls.Add(panel);
+            reloj.Interval = 1000;
+            reloj.Tick += delegate { Actualizar(); };
+            reloj.Start();
+            FormClosing += delegate { reloj.Stop(); };
+            AplicarTema();
+            Actualizar();
+        }
+
+        static string Ms(int v) { return v < 0 ? "–" : v.ToString(); }
+        static string Pct(double p) { return p < 0 ? "–" : Calidad.Porcentaje(p); }
+
+        void Actualizar()
+        {
+            RutaEnVivo.Vista v = ruta.Leer();
+            lblDestino.Text = v.Destino == "" ? "Sin destino: elige uno arriba o espera a que MonitorPing encuentre tu zona de GFN." :
+                "Hacia " + v.Destino + (v.Ip != "" && v.Ip != v.Destino ? " (" + v.Ip + ")" : "") + (v.Origen != "" ? " · sale por " + v.Origen : "") +
+                (v.Estado != "" ? " · " + v.Estado : "");
+
+            List<RutaEnVivo.Salto> filas = new List<RutaEnVivo.Salto>(v.Saltos);
+            if (v.Ip != "") filas.Add(v.Final);
+            lvSaltos.BeginUpdate();
+            while (lvSaltos.Items.Count > filas.Count) lvSaltos.Items.RemoveAt(lvSaltos.Items.Count - 1);
+            while (lvSaltos.Items.Count < filas.Count)
+            {
+                ListViewItem nuevo = new ListViewItem("");
+                for (int c = 1; c < lvSaltos.Columns.Count; c++) nuevo.SubItems.Add("");
+                lvSaltos.Items.Add(nuevo);
+            }
+            for (int i = 0; i < filas.Count; i++)
+            {
+                RutaEnVivo.Salto s = filas[i];
+                bool fin = s == v.Final;
+                ListViewItem it = lvSaltos.Items[i];
+                Poner(it, 0, fin ? "fin" : s.Ttl.ToString());
+                Poner(it, 1, s.Ip ?? "*");
+                Poner(it, 2, (s.Inicio ? "► " : "") + s.Red);
+                Poner(it, 3, Pct(s.Perdida));
+                Poner(it, 4, Pct(s.Perdida10));
+                Poner(it, 5, Ms(s.Prom));
+                Poner(it, 6, Ms(s.Max));
+                Poner(it, 7, Ms(s.Ultimo));
+                Color c = s.Ip == null ? tema.TenueVentana : s.Inicio ? tema.TextoMal : s.Perdida10 >= 30 ? tema.TextoAviso : tema.Ventanas ? tema.Texto : SystemColors.WindowText;
+                if (it.ForeColor != c) it.ForeColor = c;
+            }
+            lvSaltos.EndUpdate();
+
+            lblDiag.Text = v.Diagnostico;
+            lblDiag.ForeColor = v.Nivel == 2 ? tema.TextoMal : v.Nivel == 0 ? tema.TextoOk : tema.TenueVentana;
+
+            if (v.Eventos.Length != eventosMostrados)
+            {
+                eventosMostrados = v.Eventos.Length;
+                lvEventos.BeginUpdate();
+                lvEventos.Items.Clear();
+                foreach (RutaEnVivo.Evento e in v.Eventos)
+                {
+                    ListViewItem it = new ListViewItem(e.Momento.ToString("HH:mm:ss"));
+                    it.SubItems.Add(e.Tipo);
+                    it.SubItems.Add(e.Lugar);
+                    lvEventos.Items.Add(it);
+                }
+                lvEventos.EndUpdate();
+            }
+        }
+
+        static void Poner(ListViewItem it, int col, string texto)
+        {
+            if (it.SubItems[col].Text != texto) it.SubItems[col].Text = texto;
+        }
+
+        void Copiar()
+        {
+            RutaEnVivo.Vista v = ruta.Leer();
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Ruta en vivo (MonitorPing) · " + DateTime.Now.ToString("dd/MM/yyyy HH:mm:ss"));
+            sb.AppendLine("Hacia " + v.Destino + " (" + v.Ip + ") desde " + v.Origen);
+            sb.AppendLine();
+            sb.Append(RutaEnVivo.Tabla(v, ""));
+            sb.AppendLine();
+            sb.AppendLine(v.Diagnostico);
+            try { Clipboard.SetText(sb.ToString()); lblDestino.Text = "Tabla copiada: pégala donde quieras (Ctrl+V)."; }
+            catch { }
         }
 
         static Label Etiqueta(string texto, int ancho, bool tenue)
