@@ -1,0 +1,22 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "perfil",
+  "url": "https://www.facebook.com/auditorbots.ejemplo.normal04",
+  "id": null,
+  "usuario": "auditorbots.ejemplo.normal04",
+  "nombre": "Diego Normal",
+  "se_unio": "",
+  "tiene_foto": true,
+  "amigos_visibles": false,
+  "sin_publicaciones": false,
+  "publicaciones": [
+    {
+      "fecha": "5 h",
+      "texto": "Leyendo un buen libro",
+      "enlaces": [],
+      "borrada": false
+    }
+  ]
+}

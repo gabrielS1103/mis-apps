@@ -1,0 +1,32 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "perfil",
+  "url": "https://www.facebook.com/auditorbots.ejemplo.zombi02",
+  "id": null,
+  "usuario": "auditorbots.ejemplo.zombi02",
+  "nombre": "Lucas Zombi 48213",
+  "se_unio": "Joined February 2020",
+  "tiene_foto": false,
+  "amigos_visibles": false,
+  "sin_publicaciones": false,
+  "publicaciones": [
+    {
+      "fecha": "March 3, 2021",
+      "texto": "Por mi cumpleaños este año, pido donaciones para Fundación Ejemplo Tres. Elegí esta organización porque su misión significa mucho para mí, y espero que consideres contribuir como forma de celebrar conmigo.",
+      "enlaces": [
+        "https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.gofundme.com%2Ff%2Fejemplo-causa-3%3Futm_source%3Dfb&h=x"
+      ],
+      "borrada": false
+    },
+    {
+      "fecha": "March 20, 2021",
+      "texto": "Por mi cumpleaños este año, pido donaciones para Fundación Ejemplo Cuatro. Elegí esta organización porque su misión significa mucho para mí, y espero que consideres contribuir como forma de celebrar conmigo.",
+      "enlaces": [
+        "https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.gofundme.com%2Ff%2Fejemplo-causa-4%3Futm_source%3Dfb&h=x"
+      ],
+      "borrada": false
+    }
+  ]
+}

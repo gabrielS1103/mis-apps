@@ -1,0 +1,24 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "perfil",
+  "url": "https://www.facebook.com/auditorbots.ejemplo.coro01",
+  "id": null,
+  "usuario": "auditorbots.ejemplo.coro01",
+  "nombre": "Karen Coro",
+  "se_unio": "",
+  "tiene_foto": true,
+  "amigos_visibles": true,
+  "sin_publicaciones": false,
+  "publicaciones": [
+    {
+      "fecha": "1 sem",
+      "texto": "Miren esto",
+      "enlaces": [
+        "https://ejemplo-noticias.invalid/nota-123?fbclid=a"
+      ],
+      "borrada": false
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "perfil",
+  "url": "https://www.facebook.com/auditorbots.ejemplo.zombi04",
+  "id": null,
+  "usuario": "auditorbots.ejemplo.zombi04",
+  "nombre": "Pedro Zombi 7781",
+  "se_unio": "",
+  "tiene_foto": false,
+  "amigos_visibles": null,
+  "sin_publicaciones": false,
+  "publicaciones": [
+    {
+      "fecha": "2021",
+      "texto": "Hola",
+      "enlaces": [],
+      "borrada": false
+    }
+  ]
+}

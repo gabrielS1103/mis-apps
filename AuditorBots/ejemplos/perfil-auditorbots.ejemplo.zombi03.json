@@ -1,0 +1,28 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "perfil",
+  "url": "https://www.facebook.com/auditorbots.ejemplo.zombi03",
+  "id": null,
+  "usuario": "auditorbots.ejemplo.zombi03",
+  "nombre": "Rosa Zombi",
+  "se_unio": "Se unió en 2019",
+  "tiene_foto": true,
+  "amigos_visibles": false,
+  "sin_publicaciones": false,
+  "publicaciones": [
+    {
+      "fecha": "4 a",
+      "texto": "Buenas noches",
+      "enlaces": [],
+      "borrada": false
+    },
+    {
+      "fecha": "15 de junio de 2021",
+      "texto": "Qué lindo día",
+      "enlaces": [],
+      "borrada": false
+    }
+  ]
+}

@@ -1,0 +1,177 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "reacciones",
+  "publicacion": "https://www.facebook.com/auditorbots.ejemplo.pagina/posts/1001",
+  "elementos": [
+    {
+      "nombre": "Marta Zombi",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.zombi01?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.zombi01",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Lucas Zombi 48213",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.zombi02?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.zombi02",
+      "reaccion": "Me encanta"
+    },
+    {
+      "nombre": "Rosa Zombi",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.zombi03?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.zombi03",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Pedro Zombi 7781",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.zombi04?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.zombi04",
+      "reaccion": null
+    },
+    {
+      "nombre": "Elena Zombi",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.zombi05?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.zombi05",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Ana Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal01?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal01",
+      "reaccion": "Me encanta"
+    },
+    {
+      "nombre": "Bruno Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal02?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal02",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Carla Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal03?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal03",
+      "reaccion": null
+    },
+    {
+      "nombre": "Diego Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal04?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal04",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Eva Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal05?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal05",
+      "reaccion": "Me encanta"
+    },
+    {
+      "nombre": "Félix Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal06?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal06",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Gloria Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal07?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal07",
+      "reaccion": null
+    },
+    {
+      "nombre": "Hugo Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal08?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal08",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Irene Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal09?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal09",
+      "reaccion": "Me encanta"
+    },
+    {
+      "nombre": "Javier Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal10?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal10",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Karen Coro",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.coro01?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.coro01",
+      "reaccion": null
+    },
+    {
+      "nombre": "Luis Coro",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.coro02?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.coro02",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Mónica Coro",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.coro03?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.coro03",
+      "reaccion": "Me encanta"
+    },
+    {
+      "nombre": "Solo Reacción 1",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.solo01?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.solo01",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Solo Reacción 2",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.solo02?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.solo02",
+      "reaccion": null
+    },
+    {
+      "nombre": "Solo Reacción 3",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.solo03?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.solo03",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Solo Reacción 4",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.solo04?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.solo04",
+      "reaccion": "Me encanta"
+    },
+    {
+      "nombre": "Solo Reacción 5",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.solo05?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.solo05",
+      "reaccion": "Me gusta"
+    },
+    {
+      "nombre": "Solo Reacción 6",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.solo06?__cft__[0]=abc&__tn__=R",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.solo06",
+      "reaccion": null
+    }
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "perfil",
+  "url": "https://www.facebook.com/auditorbots.ejemplo.zombi01",
+  "id": null,
+  "usuario": "auditorbots.ejemplo.zombi01",
+  "nombre": "Marta Zombi",
+  "se_unio": "Se unió en enero de 2020",
+  "tiene_foto": false,
+  "amigos_visibles": false,
+  "sin_publicaciones": false,
+  "publicaciones": [
+    {
+      "fecha": "12 de marzo de 2021",
+      "texto": "Por mi cumpleaños este año, pido donaciones para Fundación Ejemplo Uno. Elegí esta organización porque su misión significa mucho para mí, y espero que consideres contribuir como forma de celebrar conmigo.",
+      "enlaces": [
+        "https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.gofundme.com%2Ff%2Fejemplo-causa-1%3Futm_source%3Dfb&h=x"
+      ],
+      "borrada": false
+    },
+    {
+      "fecha": "2 de abril de 2021",
+      "texto": "Por mi cumpleaños este año, pido donaciones para Fundación Ejemplo Dos. Elegí esta organización porque su misión significa mucho para mí, y espero que consideres contribuir como forma de celebrar conmigo.",
+      "enlaces": [
+        "https://l.facebook.com/l.php?u=https%3A%2F%2Fwww.gofundme.com%2Ff%2Fejemplo-causa-2%3Futm_source%3Dfb&h=x"
+      ],
+      "borrada": false
+    },
+    {
+      "fecha": "5 a",
+      "texto": "Feliz día a todos",
+      "enlaces": [],
+      "borrada": false
+    }
+  ]
+}

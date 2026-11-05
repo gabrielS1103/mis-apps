@@ -1,0 +1,65 @@
+{
+  "fuente": "AuditorBots",
+  "version": 1,
+  "capturado": "2026-11-01T15:00:00.000Z",
+  "tipo": "comentarios",
+  "publicacion": "https://www.facebook.com/auditorbots.ejemplo.pagina/posts/1001",
+  "elementos": [
+    {
+      "nombre": "Karen Coro",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.coro01",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.coro01",
+      "texto": "Excelente trabajo de esta pagina, siempre informando con la verdad a todo el pueblo 👏",
+      "fecha": "2 d"
+    },
+    {
+      "nombre": "Luis Coro",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.coro02",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.coro02",
+      "texto": "Excelente trabajo de esta pagina, siempre informando con la verdad a todo el pueblo 👏",
+      "fecha": "2 d"
+    },
+    {
+      "nombre": "Mónica Coro",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.coro03",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.coro03",
+      "texto": "Excelente trabajo de esta pagina, siempre informando con la verdad a todo el pueblo 👏 👏👏",
+      "fecha": "1 d"
+    },
+    {
+      "nombre": "Lucas Zombi 48213",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.zombi02",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.zombi02",
+      "texto": "Amén 🙏🙏",
+      "fecha": "3 d"
+    },
+    {
+      "nombre": "Pedro Zombi 7781",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.zombi04",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.zombi04",
+      "texto": "Bendiciones",
+      "fecha": "3 d"
+    },
+    {
+      "nombre": "Ana Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal01",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal01",
+      "texto": "No estoy de acuerdo con lo que dicen en el minuto 3, el dato está mal.",
+      "fecha": "5 h"
+    },
+    {
+      "nombre": "Bruno Normal",
+      "url": "https://www.facebook.com/auditorbots.ejemplo.normal02",
+      "id": null,
+      "usuario": "auditorbots.ejemplo.normal02",
+      "texto": "¿Alguien sabe dónde fue esto?",
+      "fecha": "1 d"
+    }
+  ]
+}
