@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- RECORD_AUDIO es obligatorio para AudioPlaybackCapture aunque no se use el micrófono -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Para dibujar el subtítulo encima de Facebook -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- Solo para descargar los modelos (voz y traducción) la primera vez -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Para obtener el UID de Facebook y capturar solo su audio -->
+    <queries>
+        <package android:name="com.facebook.katana" />
+    </queries>
+
+    <application
+        android:name=".AplicacionSubtitulos"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/nombre_app"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.SubtitulosEnVivo"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".ActividadPrincipal"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Servicio en primer plano que captura el audio interno.
+             "microphone" además de "mediaProjection": sin él, Android 14+ puede silenciar la grabación en segundo plano. -->
+        <service
+            android:name=".captura.ServicioCaptura"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|microphone" />
+    </application>
+</manifest>

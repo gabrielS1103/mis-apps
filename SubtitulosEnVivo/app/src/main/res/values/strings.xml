@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nombre_app">Subtítulos en vivo</string>
+    <string name="canal_servicio">Captura de audio</string>
+
+    <string name="principal_descripcion">Escucha el audio de los videos (no el micrófono) para subtitularlos en español. Al iniciar, Android pide permiso para grabar o compartir la pantalla: así es como se accede al audio interno.</string>
+    <string name="solo_facebook">Capturar solo el audio de Facebook</string>
+    <string name="iniciar">Iniciar captura</string>
+    <string name="detener">Detener captura</string>
+
+    <string name="estado_apagada">Captura apagada</string>
+    <string name="estado_esperando">Escuchando %1$s… reproduce un video</string>
+    <string name="estado_llega_audio">✓ Llega audio de %1$s</string>
+    <string name="estado_silencio">Silencio desde %1$s. Si hay un video sonando, esa app bloquea la captura.</string>
+    <string name="nivel_detalle">ahora %1$.0f dB · máx %2$.0f dB · %3$.1f s con sonido</string>
+
+    <string name="modelo_falta">Falta el modelo de voz en inglés (60 MB, se descarga una sola vez). Sin él solo se mide el nivel del audio.</string>
+    <string name="modelo_descargando">Descargando el modelo de voz… %1$d de %2$d MB</string>
+    <string name="modelo_error">No se pudo descargar el modelo: %1$s</string>
+    <string name="modelo_listo">✓ Modelo de voz listo</string>
+    <string name="descargar_modelo">Descargar modelos</string>
+    <string name="reintentar_descarga">Reintentar descarga</string>
+    <string name="traductor_falta">Falta el traductor inglés → español (~30 MB, se descarga una sola vez).</string>
+    <string name="traductor_descargando">Descargando el traductor…</string>
+    <string name="traductor_error">No se pudo descargar el traductor (mira el registro).</string>
+    <string name="traductor_listo">✓ Traductor listo</string>
+
+    <string name="falta_superposicion">Falta el permiso para mostrar el subtítulo encima de otras apps.</string>
+    <string name="dar_permiso_superposicion">Dar permiso</string>
+    <string name="mostrar_ingles">Mostrar también el texto en inglés</string>
+
+    <string name="titulo_frases_traducidas">Últimas frases</string>
+    <string name="sin_frases">Todavía no se reconoció ninguna frase</string>
+    <string name="frase_tiempos">%1$.1f s de audio → Whisper %2$.1f s</string>
+
+    <string name="escuchar_muestra">Escuchar los últimos 10 s capturados</string>
+    <string name="muestra_vacia">Todavía no se capturó nada</string>
+    <string name="falta_permiso_audio">Sin el permiso de audio no se puede capturar el sonido de otras apps</string>
+    <string name="titulo_registro">Registro</string>
+
+    <string name="origen_facebook">Facebook</string>
+    <string name="origen_todas">todas las apps</string>
+
+    <string name="notificacion_titulo">Subtítulos en vivo</string>
+    <string name="notificacion_preparando">Preparando la captura…</string>
+    <string name="notificacion_capturando">Escuchando %1$s</string>
+    <string name="notificacion_detener">Detener</string>
+</resources>

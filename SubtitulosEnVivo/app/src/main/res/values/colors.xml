@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primario">#5B6CFF</color>
+    <color name="primario_oscuro">#3D4BCC</color>
+    <color name="acento">#FFC857</color>
+    <color name="fondo_superposicion">#DD101522</color>
+    <color name="texto_original">#FFFFFF</color>
+    <color name="texto_traducido">#FFC857</color>
+    <color name="texto_parcial">#DDFFFFFF</color>
+    <color name="texto_ingles">#B3FFFFFF</color>
+</resources>
