@@ -25,6 +25,7 @@ class ProveedorKugou(private val http: ClienteHttp, private val decodificarBase6
     override suspend fun buscar(cancion: CancionDetectada): LetraEncontrada? {
         val consulta = "${cancion.artistaPrincipal} ${cancion.tituloSinColaboradores}"
         val r = http.obtener("https://songsearch.kugou.com/song_search_v2?keyword=${URLEncoder.encode(consulta, "UTF-8")}&page=1&pagesize=10&platform=WebFilter")
+        if (r.fallaServidor) throw FuenteNoResponde(nombre, r.codigo)
         if (!r.correcta) { Registro.aviso(Registro.KUGOU, "búsqueda -> ${r.codigo}"); return null }
         val canciones = analizarBusqueda(r.cuerpo)
         val mejor = Emparejador.mejor(canciones) { Emparejador.puntuar(it.titulo, it.artista, it.duracionSeg, cancion) }
@@ -32,10 +33,12 @@ class ProveedorKugou(private val http: ClienteHttp, private val decodificarBase6
         val c = mejor?.first ?: return null
 
         val rc = http.obtener("https://krcs.kugou.com/search?ver=1&man=yes&client=mobi&keyword=&duration=${(c.duracionSeg * 1000).toLong()}&hash=${c.hash}")
+        if (rc.fallaServidor) throw FuenteNoResponde(nombre, rc.codigo)
         if (!rc.correcta) { Registro.aviso(Registro.KUGOU, "candidatas -> ${rc.codigo}"); return null }
         val candidata = analizarCandidatas(rc.cuerpo).firstOrNull() ?: run { Registro.info(Registro.KUGOU, "sin letras para ${c.hash.take(8)}"); return null }
 
         val rd = http.obtener("https://lyrics.kugou.com/download?ver=1&client=pc&id=${candidata.id}&accesskey=${candidata.accesskey}&fmt=lrc&charset=utf8")
+        if (rd.fallaServidor) throw FuenteNoResponde(nombre, rd.codigo)
         if (!rd.correcta) { Registro.aviso(Registro.KUGOU, "descarga -> ${rd.codigo}"); return null }
         val lrc = analizarDescarga(rd.cuerpo, decodificarBase64) ?: return null
         return LetraEncontrada(nombre, candidata.id, c.titulo, c.artista, c.duracionSeg, lrc)

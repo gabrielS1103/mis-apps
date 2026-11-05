@@ -20,6 +20,7 @@ object Registro {
     const val CACHE = "LEV/Cache"
     const val MLKIT = "LEV/MlKit"
     const val RED = "LEV/Red"
+    const val GENERO = "LEV/Genero"
 
     private const val MAXIMO = 400
     private val lineas = ArrayDeque<String>(MAXIMO)

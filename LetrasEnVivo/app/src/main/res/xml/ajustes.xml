@@ -34,6 +34,18 @@
             android:summary="Debajo de la línea actual, en pequeño."
             android:title="Mostrar la línea siguiente" />
 
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="acortar_titulo"
+            android:summary="Quita lo que va entre paréntesis, como «(con Mindy Gledhill)», del nombre de la canción arriba de la ventana."
+            android:title="Acortar el título" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="aviso_traduccion_automatica"
+            android:summary="Avisa debajo de la letra cuando la traducción es automática (del teléfono) y no hecha por una persona."
+            android:title="Mostrar «traducción automática»" />
+
         <Preference
             android:key="restablecer_posicion"
             android:summary="Devuelve la ventana flotante a su sitio inicial."

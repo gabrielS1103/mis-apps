@@ -11,18 +11,18 @@
     android:paddingBottom="6dp">
 
     <TextView
-        android:id="@+id/fila_original"
+        android:id="@+id/fila_principal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/texto_original"
+        android:textColor="@color/texto_principal"
         android:textSize="15sp"
-        tools:text="Paper lanterns over the river" />
+        tools:text="Linternas de papel sobre el río" />
 
     <TextView
-        android:id="@+id/fila_traducida"
+        android:id="@+id/fila_secundaria"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:textColor="@color/texto_traducido"
+        android:textColor="@color/texto_secundario"
         android:textSize="14sp"
-        tools:text="Linternas de papel sobre el río" />
+        tools:text="Paper lanterns over the river" />
 </LinearLayout>

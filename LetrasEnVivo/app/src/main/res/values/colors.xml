@@ -4,8 +4,10 @@
     <color name="primario_oscuro">#3D4BCC</color>
     <color name="acento">#FFC857</color>
     <color name="fondo_superposicion">#DD101522</color>
-    <color name="texto_original">#FFFFFF</color>
-    <color name="texto_traducido">#FFC857</color>
+    <!-- Arriba la traducción en blanco; abajo el original en amarillo -->
+    <color name="texto_principal">#FFFFFF</color>
+    <color name="texto_secundario">#FFC857</color>
+    <color name="texto_genero">#CCB7C0FF</color>
     <color name="texto_siguiente">#99FFFFFF</color>
     <color name="texto_aviso">#99FFFFFF</color>
     <color name="linea_actual">#335B6CFF</color>

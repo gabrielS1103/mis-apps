@@ -15,6 +15,10 @@ data class Configuracion(
     /** 20..100 */
     val opacidad: Int = 85,
     val mostrarSiguiente: Boolean = true,
+    /** Mostrar "traducción automática" cuando la traducción es de ML Kit. */
+    val avisoTraduccionAutomatica: Boolean = false,
+    /** Quitar lo que va entre paréntesis del título de la cabecera ("(con Mindy Gledhill)"). */
+    val acortarTitulo: Boolean = true,
     val desfaseGlobalMs: Long = 0,
     val usarLrclib: Boolean = true,
     val usarLyricsTranslate: Boolean = true,
@@ -44,6 +48,8 @@ class Ajustes(context: Context) {
         tamanoFuenteSp = prefs.getInt(CLAVE_TAMANO, 18),
         opacidad = prefs.getInt(CLAVE_OPACIDAD, 85),
         mostrarSiguiente = prefs.getBoolean(CLAVE_SIGUIENTE, true),
+        avisoTraduccionAutomatica = prefs.getBoolean(CLAVE_AVISO_AUTOMATICA, false),
+        acortarTitulo = prefs.getBoolean(CLAVE_ACORTAR_TITULO, true),
         desfaseGlobalMs = (prefs.getInt(CLAVE_DESFASE, 20) - 20) * 250L,
         usarLrclib = prefs.getBoolean(CLAVE_LRCLIB, true),
         usarLyricsTranslate = prefs.getBoolean(CLAVE_LT, true),
@@ -76,6 +82,8 @@ class Ajustes(context: Context) {
         const val CLAVE_TAMANO = "tamano_fuente"
         const val CLAVE_OPACIDAD = "opacidad"
         const val CLAVE_SIGUIENTE = "mostrar_siguiente"
+        const val CLAVE_AVISO_AUTOMATICA = "aviso_traduccion_automatica"
+        const val CLAVE_ACORTAR_TITULO = "acortar_titulo"
         const val CLAVE_DESFASE = "desfase_global"
         const val CLAVE_LRCLIB = "usar_lrclib"
         const val CLAVE_LT = "usar_lyricstranslate"

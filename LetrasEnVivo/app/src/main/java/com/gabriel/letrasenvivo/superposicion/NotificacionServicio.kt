@@ -9,7 +9,7 @@ import com.gabriel.letrasenvivo.AplicacionLetras
 import com.gabriel.letrasenvivo.R
 import com.gabriel.letrasenvivo.ajustes.ActividadPrincipal
 
-/** Notificación fija del servicio en primer plano. */
+/** Notificación fija del servicio en primer plano. Sin botón de detener: se apaga solo desde el panel. */
 object NotificacionServicio {
     const val ID = 1
 
@@ -18,16 +18,11 @@ object NotificacionServicio {
             context, 0, Intent(context, ActividadPrincipal::class.java),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
-        val detener = PendingIntent.getService(
-            context, 1, ServicioSuperposicion.intent(context, ServicioSuperposicion.ACCION_APAGAR),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
         return NotificationCompat.Builder(context, AplicacionLetras.CANAL_SERVICIO)
             .setSmallIcon(R.drawable.ic_letras)
             .setContentTitle(context.getString(R.string.notificacion_titulo))
             .setContentText(texto ?: context.getString(R.string.sin_cancion))
             .setContentIntent(abrir)
-            .addAction(0, context.getString(R.string.notificacion_detener), detener)
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

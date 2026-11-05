@@ -18,6 +18,8 @@ import com.gabriel.letrasenvivo.Registro
 import com.gabriel.letrasenvivo.ajustes.Configuracion
 import com.gabriel.letrasenvivo.ajustes.ModoVisualizacion
 import com.gabriel.letrasenvivo.databinding.SuperposicionBinding
+import com.gabriel.letrasenvivo.deteccion.CancionDetectada
+import com.gabriel.letrasenvivo.genero.Genero
 import com.gabriel.letrasenvivo.letras.modelos.Letra
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -25,8 +27,6 @@ import kotlin.math.roundToInt
 /** La ventana flotante: se añade con WindowManager encima de cualquier app. */
 class VistaSuperposicion(
     private val context: Context,
-    private val alCerrar: () -> Unit,
-    private val alAbrirAjustes: () -> Unit,
     private val alCambiarDesfase: (Long) -> Unit,
     private val alMoverse: (Int, Int) -> Unit,
     private val alSincronizarLinea: (Int) -> Unit,
@@ -49,16 +49,17 @@ class VistaSuperposicion(
     private var expandida = false
     private var letra: Letra? = null
     private var indice = -1
+    private var pausa = false
     private var modo = ModoVisualizacion.AMBOS
     private var mostrarSiguiente = true
     private var tamanoSp = 18f
+    private var avisoAutomatica = false
+    private var acortarTitulo = true
+    private var cancion: CancionDetectada? = null
 
     init {
         b.listaLineas.layoutManager = LinearLayoutManager(context)
         b.listaLineas.adapter = adaptador
-        b.botonCerrar.setOnClickListener { alCerrar() }
-        b.botonAjustes.setOnClickListener { alAbrirAjustes() }
-        b.botonExpandir.setOnClickListener { alternarExpandida() }
         b.botonMenos.setOnClickListener { alCambiarDesfase(-500) }
         b.botonMas.setOnClickListener { alCambiarDesfase(500) }
         instalarGestos()
@@ -84,6 +85,10 @@ class VistaSuperposicion(
         modo = c.modo
         mostrarSiguiente = c.mostrarSiguiente
         tamanoSp = c.tamanoFuenteSp.toFloat()
+        avisoAutomatica = c.avisoTraduccionAutomatica
+        acortarTitulo = c.acortarTitulo
+        mostrarCancion(cancion)
+        pintarAvisos()
         adaptador.modo = c.modo
         adaptador.tamanoSp = c.tamanoFuenteSp - 3f
         (b.root.background.mutate() as? GradientDrawable)?.alpha = (255 * c.opacidad / 100f).roundToInt()
@@ -95,8 +100,22 @@ class VistaSuperposicion(
         pintar()
     }
 
-    fun mostrarCancion(nombre: String?) {
-        b.textoCabecera.text = nombre ?: context.getString(R.string.nombre_app)
+    fun mostrarCancion(c: CancionDetectada?) {
+        cancion = c
+        b.textoCabecera.text = if (c == null) context.getString(R.string.nombre_app) else {
+            val titulo = if (acortarTitulo) sinParentesis(c.titulo) else c.titulo
+            "$titulo – ${c.artista}"
+        }
+    }
+
+    /** null = género desconocido (o aún buscándolo): se oculta el renglón. */
+    fun mostrarGenero(g: Genero?) {
+        b.textoGenero.text = when {
+            g == null -> null
+            g.subgenero == null -> context.getString(R.string.genero, g.genero)
+            else -> context.getString(R.string.genero_y_subgenero, g.genero, g.subgenero)
+        }?.let { if (g?.deArtista == true) it + context.getString(R.string.genero_del_artista) else it }
+        b.textoGenero.visibility = if (g == null) View.GONE else View.VISIBLE
     }
 
     fun mostrarLetra(l: Letra?, mensaje: String?) {
@@ -104,24 +123,27 @@ class VistaSuperposicion(
         adaptador.lineas = l?.lineas.orEmpty()
         b.textoAviso.visibility = View.GONE
         if (l == null) {
-            b.textoOriginal.text = mensaje ?: ""
-            b.textoOriginal.textSize = tamanoSp - 2
-            b.textoTraducido.visibility = View.GONE
-            b.textoSiguiente.visibility = View.GONE
+            mostrarSoloMensaje(mensaje ?: "", tamanoSp - 2)
             return
         }
         if (l.instrumental) {
-            b.textoOriginal.text = context.getString(R.string.instrumental)
-            b.textoTraducido.visibility = View.GONE
-            b.textoSiguiente.visibility = View.GONE
+            mostrarSoloMensaje(context.getString(R.string.instrumental), tamanoSp)
             return
         }
-        val avisos = ArrayList<String>()
-        if (l.aproximada) avisos += context.getString(R.string.aproximada)
-        if (l.versionDistinta) avisos += context.getString(R.string.version_distinta)
-        if (l.fuentes.mlKit) avisos += context.getString(R.string.traduccion_automatica)
-        if (avisos.isNotEmpty()) { b.textoAviso.text = avisos.joinToString(" · "); b.textoAviso.visibility = View.VISIBLE }
+        pintarAvisos()
         pintar()
+    }
+
+    private fun pintarAvisos() {
+        val l = letra?.takeIf { !it.instrumental }
+        val avisos = ArrayList<String>()
+        if (l != null) {
+            if (l.aproximada) avisos += context.getString(R.string.aproximada)
+            if (l.versionDistinta) avisos += context.getString(R.string.version_distinta)
+            if (l.fuentes.mlKit && avisoAutomatica) avisos += context.getString(R.string.traduccion_automatica)
+        }
+        b.textoAviso.text = avisos.joinToString(" · ")
+        b.textoAviso.visibility = if (avisos.isEmpty()) View.GONE else View.VISIBLE
     }
 
     fun mostrarDesfase(totalMs: Long) {
@@ -135,36 +157,60 @@ class VistaSuperposicion(
         pintar()
     }
 
+    /** Un aviso en el renglón de arriba (blanco), sin original ni siguiente. */
+    private fun mostrarSoloMensaje(texto: String, tamano: Float) {
+        b.textoPrincipal.text = texto
+        b.textoPrincipal.textSize = tamano
+        b.textoPrincipal.visibility = View.VISIBLE
+        b.textoSecundario.visibility = View.GONE
+        b.textoSiguiente.visibility = View.GONE
+    }
+
+    fun marcarPausa(p: Boolean) {
+        if (pausa == p) return
+        pausa = p
+        pintar()
+    }
+
     private fun pintar() {
         val l = letra ?: return
         if (l.instrumental) return
         val lineas = l.lineas
         val actual = lineas.getOrNull(indice)
-        b.textoOriginal.textSize = tamanoSp
-        b.textoTraducido.textSize = tamanoSp - 1
+        b.textoPrincipal.textSize = tamanoSp
+        b.textoSecundario.textSize = tamanoSp - 1
         b.textoSiguiente.textSize = (tamanoSp - 5).coerceAtLeast(10f)
         if (actual == null) {
-            // Antes de la primera línea: mostrar la primera como "siguiente".
-            b.textoOriginal.text = if (!l.tieneTiempos) context.getString(R.string.sin_tiempos) else "…"
             if (!l.tieneTiempos) {
-                b.textoOriginal.textSize = tamanoSp - 3
-                b.textoTraducido.visibility = View.GONE
-                b.textoSiguiente.visibility = View.GONE
+                val aviso = l.letraDe?.let { context.getString(R.string.letra_de_la_original, it) }
+                    ?: if (l.tiemposDescartados) context.getString(R.string.tiempos_descartados) else context.getString(R.string.sin_tiempos)
+                mostrarSoloMensaje(aviso, tamanoSp - 3)
                 return
             }
-            b.textoTraducido.visibility = View.GONE
+            // Antes de la primera línea: mostrar la primera como "siguiente".
+            mostrarSoloMensaje("…", tamanoSp)
             val primera = lineas.firstOrNull { it.original.isNotBlank() }
-            b.textoSiguiente.text = primera?.let { TextosDeLinea.para(it, modo, context).first }
+            b.textoSiguiente.text = primera?.let { TextosDeLinea.principal(it, modo) }
             b.textoSiguiente.visibility = if (primera != null && mostrarSiguiente) View.VISIBLE else View.GONE
             return
         }
-        val (original, traducida) = TextosDeLinea.para(actual, modo, context)
-        b.textoOriginal.text = original
-        b.textoTraducido.text = traducida
-        b.textoTraducido.visibility = if (traducida == null) View.GONE else View.VISIBLE
         val siguiente = lineas.drop(indice + 1).firstOrNull { it.original.isNotBlank() }
+        if (pausa) {
+            // La línea ya pasó y no hay voz: no dejarla colgada en pantalla.
+            mostrarSoloMensaje("♪", tamanoSp)
+            if (mostrarSiguiente && siguiente != null && !expandida) {
+                b.textoSiguiente.text = TextosDeLinea.principal(siguiente, modo)
+                b.textoSiguiente.visibility = View.VISIBLE
+            }
+            return
+        }
+        val (arriba, abajo) = TextosDeLinea.para(actual, modo)
+        b.textoPrincipal.text = arriba
+        b.textoPrincipal.visibility = if (arriba == null) View.GONE else View.VISIBLE
+        b.textoSecundario.text = abajo
+        b.textoSecundario.visibility = if (abajo == null) View.GONE else View.VISIBLE
         if (mostrarSiguiente && siguiente != null && !expandida) {
-            b.textoSiguiente.text = TextosDeLinea.para(siguiente, modo, context).first
+            b.textoSiguiente.text = TextosDeLinea.principal(siguiente, modo)
             b.textoSiguiente.visibility = View.VISIBLE
         } else b.textoSiguiente.visibility = View.GONE
     }
@@ -173,7 +219,6 @@ class VistaSuperposicion(
         expandida = !expandida
         b.panelExpandido.visibility = if (expandida) View.VISIBLE else View.GONE
         b.panelContraido.visibility = if (expandida) View.GONE else View.VISIBLE
-        b.botonExpandir.rotation = if (expandida) 180f else 0f
         if (expandida && indice >= 0) b.listaLineas.scrollToPosition(indice)
         pintar()
     }
@@ -211,6 +256,11 @@ class VistaSuperposicion(
     fun estaVisible() = visible
 
     companion object {
-        fun colorTexto(context: Context) = ContextCompat.getColor(context, R.color.texto_original)
+        private val parentesis = Regex("""\s*[(\[][^)\]]*[)\]]""")
+
+        /** "Say It's Over (con Mindy Gledhill) [Remastered]" -> "Say It's Over". */
+        fun sinParentesis(titulo: String) = parentesis.replace(titulo, "").trim().ifEmpty { titulo }
+
+        fun colorTexto(context: Context) = ContextCompat.getColor(context, R.color.texto_principal)
     }
 }

@@ -19,12 +19,14 @@ class ProveedorNetEase(private val http: ClienteHttp) : ProveedorSincronizadas {
     override suspend fun buscar(cancion: CancionDetectada): LetraEncontrada? {
         val consulta = "${cancion.artistaPrincipal} ${cancion.tituloSinColaboradores}"
         val r = http.enviarFormulario("https://music.163.com/api/cloudsearch/pc", mapOf("s" to consulta, "type" to "1", "limit" to "10", "offset" to "0"))
+        if (r.fallaServidor) throw FuenteNoResponde(nombre, r.codigo)
         if (!r.correcta) { Registro.aviso(Registro.NETEASE, "búsqueda -> ${r.codigo}"); return null }
         val candidatos = analizarBusqueda(r.cuerpo)
         val mejor = Emparejador.mejor(candidatos) { Emparejador.puntuar(it.titulo, it.artista, it.duracionSeg, cancion) }
         Registro.info(Registro.NETEASE, "\"$consulta\": ${candidatos.size} candidatos; mejor=${mejor?.let { "id=${it.first.id} %.2f dur=${it.first.duracionSeg}".format(it.second) } ?: "ninguno aceptable"}")
         val c = mejor?.first ?: return null
         val rl = http.obtener("https://music.163.com/api/song/lyric?id=${c.id}&lv=1&tv=-1")
+        if (rl.fallaServidor) throw FuenteNoResponde(nombre, rl.codigo)
         if (!rl.correcta) { Registro.aviso(Registro.NETEASE, "letra -> ${rl.codigo}"); return null }
         val lrc = analizarLetra(rl.cuerpo)
         if (lrc.isNullOrBlank()) { Registro.info(Registro.NETEASE, "id=${c.id} sin letra"); return null }

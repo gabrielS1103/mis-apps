@@ -23,6 +23,8 @@ class ClienteHttp(context: Context) {
 
     data class Respuesta(val codigo: Int, val cuerpo: String, val url: String) {
         val correcta: Boolean get() = codigo in 200..299
+        /** El servidor está caído o saturado (no es que no tenga lo pedido): conviene reintentar luego. */
+        val fallaServidor: Boolean get() = codigo == 429 || codigo >= 500
     }
 
     val uaApp = "LetrasEnVivo/1.0 (https://github.com/gabrielS1103/proyecto)"
@@ -35,14 +37,15 @@ class ClienteHttp(context: Context) {
     }
 
     private val cliente: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(10, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
         .cache(Cache(File(context.cacheDir, "http"), 10L * 1024 * 1024))
         .cookieJar(CookiesDelWebView())
         .addInterceptor(Interceptor { cadena ->
             val original = cadena.request()
             val host = original.url.host
-            val ua = if (host.endsWith("lrclib.net")) uaApp else uaNavegador
+            // LRCLIB y MusicBrainz piden un User-Agent que identifique a la app.
+            val ua = if (host.endsWith("lrclib.net") || host.endsWith("musicbrainz.org")) uaApp else uaNavegador
             val constructor = original.newBuilder()
                 .header("User-Agent", ua)
                 .header("Accept-Language", "en-US,en;q=0.9,es;q=0.8")
@@ -52,7 +55,7 @@ class ClienteHttp(context: Context) {
         })
         .build()
 
-    /** GET con hasta dos reintentos ante errores de red (no ante códigos HTTP de error). */
+    /** GET con un reintento ante cortes de red (no ante códigos HTTP de error ni si el servidor no contesta a tiempo). */
     suspend fun obtener(url: String): Respuesta = ejecutar(Request.Builder().url(url).get().build())
 
     /** POST de formulario (application/x-www-form-urlencoded). */
@@ -64,7 +67,7 @@ class ClienteHttp(context: Context) {
     private suspend fun ejecutar(peticion: Request): Respuesta = withContext(Dispatchers.IO) {
         val url = peticion.url.toString()
         var ultimoError: IOException? = null
-        repeat(3) { intento ->
+        repeat(2) { intento ->
             try {
                 cliente.newCall(peticion).execute().use { r ->
                     val cuerpo = r.body?.string().orEmpty()
@@ -74,7 +77,9 @@ class ClienteHttp(context: Context) {
             } catch (e: IOException) {
                 ultimoError = e
                 Registro.aviso(Registro.RED, "${peticion.method} $url falló (intento ${intento + 1}): ${e.message}")
-                if (intento < 2) Thread.sleep(400L * (intento + 1))
+                // Si no contestó a tiempo, reintentar solo duplica la espera.
+                if (e is java.net.SocketTimeoutException) throw e
+                if (intento < 1) Thread.sleep(300L)
             }
         }
         throw ultimoError ?: IOException("Sin respuesta")

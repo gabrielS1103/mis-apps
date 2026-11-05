@@ -13,7 +13,7 @@
     android:paddingEnd="6dp"
     android:paddingBottom="10dp">
 
-    <!-- Cabecera: canción + botones -->
+    <!-- Cabecera: canción (sin botones: se apaga desde el panel y se configura desde la app) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -29,34 +29,25 @@
             android:maxLines="1"
             android:textColor="@color/texto_aviso"
             android:textSize="11sp"
-            tools:text="The Example Band – Paper Lanterns" />
-
-        <ImageButton
-            android:id="@+id/boton_expandir"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/ajustes"
-            android:src="@drawable/ic_expandir" />
-
-        <ImageButton
-            android:id="@+id/boton_ajustes"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/ajustes"
-            android:src="@drawable/ic_ajustes" />
-
-        <ImageButton
-            android:id="@+id/boton_cerrar"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/cerrar"
-            android:src="@drawable/ic_cerrar" />
+            tools:text="Paper Lanterns – The Example Band" />
     </LinearLayout>
 
-    <!-- Vista contraída -->
+    <!-- Género y subgénero de la canción (se oculta si no se conoce); si no cabe, sigue en el renglón de abajo -->
+    <TextView
+        android:id="@+id/texto_genero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:breakStrategy="balanced"
+        android:maxLines="3"
+        android:paddingEnd="8dp"
+        android:textColor="@color/texto_genero"
+        android:textSize="11sp"
+        android:visibility="gone"
+        tools:text="Género: Rock · Subgénero: Rock alternativo"
+        tools:visibility="visible" />
+
+    <!-- Vista contraída: arriba la traducción (blanco), abajo el original (amarillo) -->
     <LinearLayout
         android:id="@+id/panel_contraido"
         android:layout_width="match_parent"
@@ -65,22 +56,22 @@
         android:paddingEnd="8dp">
 
         <TextView
-            android:id="@+id/texto_original"
+            android:id="@+id/texto_principal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textColor="@color/texto_original"
+            android:textColor="@color/texto_principal"
             android:textSize="18sp"
             android:textStyle="bold"
-            tools:text="Paper lanterns over the river" />
+            tools:text="Linternas de papel sobre el río" />
 
         <TextView
-            android:id="@+id/texto_traducido"
+            android:id="@+id/texto_secundario"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
-            android:textColor="@color/texto_traducido"
+            android:textColor="@color/texto_secundario"
             android:textSize="17sp"
-            tools:text="Linternas de papel sobre el río" />
+            tools:text="Paper lanterns over the river" />
 
         <TextView
             android:id="@+id/texto_siguiente"
@@ -132,7 +123,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:text="@string/menos_medio_segundo"
-                android:textColor="@color/texto_original" />
+                android:textColor="@color/texto_principal" />
 
             <TextView
                 android:id="@+id/texto_desfase"
@@ -151,7 +142,7 @@
                 android:layout_height="wrap_content"
                 android:minWidth="0dp"
                 android:text="@string/mas_medio_segundo"
-                android:textColor="@color/texto_original" />
+                android:textColor="@color/texto_principal" />
         </LinearLayout>
     </LinearLayout>
 

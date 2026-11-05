@@ -36,11 +36,16 @@
             </intent-filter>
         </activity>
 
+        <!-- Ajustes: también se abren dejando presionado el botón del panel -->
         <activity
             android:name=".ajustes.ActividadAjustes"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/titulo_ajustes"
-            android:parentActivityName=".ajustes.ActividadPrincipal" />
+            android:parentActivityName=".ajustes.ActividadPrincipal">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
+        </activity>
 
         <activity
             android:name=".ajustes.PantallaDepuracion"

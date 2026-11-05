@@ -40,7 +40,10 @@
     <string name="anuncio">Anuncio</string>
     <string name="falta_acceso_notificaciones">Falta el acceso a notificaciones</string>
     <string name="aproximada">≈ tiempos aproximados</string>
-    <string name="sin_tiempos">Sin letra sincronizada para esta versión · toca ⌄ para leerla</string>
+    <string name="sin_tiempos">Sin letra sincronizada para esta versión · toca la ventana para leerla</string>
+    <string name="sin_letra_por_ahora">Sin letra por ahora · %1$s</string>
+    <string name="tiempos_descartados">La única letra sincronizada que hay tiene los tiempos mal hechos · toca la ventana para leerla</string>
+    <string name="letra_de_la_original">Esta versión no tiene letra propia: es la de «%1$s», sin sincronizar · toca la ventana para leerla</string>
     <string name="traduccion_automatica">traducción automática</string>
     <string name="version_distinta">vídeo: abre ⌄ y toca la línea que suena</string>
     <string name="toca_para_sincronizar">Toca la línea que estás oyendo para sincronizar</string>
@@ -48,12 +51,13 @@
     <string name="ajustes">Ajustes</string>
     <string name="menos_medio_segundo">−0,5 s</string>
     <string name="mas_medio_segundo">+0,5 s</string>
-    <string name="sin_traduccion">(sin traducción)</string>
+    <string name="genero">Género: %1$s</string>
+    <string name="genero_y_subgenero">Género: %1$s · Subgénero: %2$s</string>
+    <string name="genero_del_artista">" (del artista)"</string>
 
     <!-- Notificación -->
     <string name="canal_servicio">Ventana flotante</string>
     <string name="notificacion_titulo">Letras en vivo activas</string>
-    <string name="notificacion_detener">Detener</string>
 
     <!-- Depuración -->
     <string name="dep_copiar">Copiar informe</string>

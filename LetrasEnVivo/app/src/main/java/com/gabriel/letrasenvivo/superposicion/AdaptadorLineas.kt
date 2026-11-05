@@ -43,16 +43,16 @@ class AdaptadorLineas(private val alTocar: (Int) -> Unit) : RecyclerView.Adapter
     override fun onBindViewHolder(h: Fila, i: Int) {
         val l = lineas[i]
         val actual = i == indiceActual
-        val (original, traducida) = TextosDeLinea.para(l, modo, h.b.root.context)
-        h.b.filaOriginal.text = original
-        h.b.filaOriginal.visibility = if (original == null) View.GONE else View.VISIBLE
-        h.b.filaTraducida.text = traducida
-        h.b.filaTraducida.visibility = if (traducida == null) View.GONE else View.VISIBLE
-        h.b.filaOriginal.textSize = tamanoSp
-        h.b.filaTraducida.textSize = tamanoSp - 1
-        h.b.filaOriginal.setTypeface(null, if (actual) Typeface.BOLD else Typeface.NORMAL)
-        h.b.filaOriginal.alpha = if (actual || indiceActual == -1) 1f else 0.7f
-        h.b.filaTraducida.alpha = h.b.filaOriginal.alpha
+        val (arriba, abajo) = TextosDeLinea.para(l, modo)
+        h.b.filaPrincipal.text = arriba
+        h.b.filaPrincipal.visibility = if (arriba == null) View.GONE else View.VISIBLE
+        h.b.filaSecundaria.text = abajo
+        h.b.filaSecundaria.visibility = if (abajo == null) View.GONE else View.VISIBLE
+        h.b.filaPrincipal.textSize = tamanoSp
+        h.b.filaSecundaria.textSize = tamanoSp - 1
+        h.b.filaPrincipal.setTypeface(null, if (actual) Typeface.BOLD else Typeface.NORMAL)
+        h.b.filaPrincipal.alpha = if (actual || indiceActual == -1) 1f else 0.7f
+        h.b.filaSecundaria.alpha = h.b.filaPrincipal.alpha
         h.b.fila.setBackgroundResource(if (actual) R.drawable.fondo_linea_actual else 0)
     }
 }

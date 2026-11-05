@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import com.gabriel.letrasenvivo.ajustes.Ajustes
+import com.gabriel.letrasenvivo.genero.ProveedorDeGeneros
 import com.gabriel.letrasenvivo.letras.CacheDeLetras
 import com.gabriel.letrasenvivo.letras.ProveedorKugou
 import com.gabriel.letrasenvivo.letras.ProveedorLrclib
@@ -13,6 +14,8 @@ import com.gabriel.letrasenvivo.letras.ProveedorLyricsTranslate
 import com.gabriel.letrasenvivo.letras.RepositorioDeLetras
 import com.gabriel.letrasenvivo.letras.TraductorMlKit
 import com.gabriel.letrasenvivo.red.ClienteHttp
+import com.gabriel.letrasenvivo.red.ClienteMusicBrainz
+import com.gabriel.letrasenvivo.letras.BuscadorDeOriginal
 import com.gabriel.letrasenvivo.red.NavegadorOculto
 
 /** Punto único donde se crean los objetos compartidos (sin inyección de dependencias: la app es pequeña). */
@@ -22,6 +25,7 @@ class AplicacionLetras : Application() {
     lateinit var http: ClienteHttp; private set
     lateinit var cache: CacheDeLetras; private set
     lateinit var repositorio: RepositorioDeLetras; private set
+    lateinit var generos: ProveedorDeGeneros; private set
 
     override fun onCreate() {
         super.onCreate()
@@ -29,13 +33,16 @@ class AplicacionLetras : Application() {
         http = ClienteHttp(this)
         cache = CacheDeLetras(this)
         val navegador = NavegadorOculto(this)
+        val musicBrainz = ClienteMusicBrainz(http)
         repositorio = RepositorioDeLetras(
             cache = cache,
             sincronizadas = listOf(ProveedorLrclib(http), ProveedorNetEase(http), ProveedorKugou(http)),
             lyricsTranslate = ProveedorLyricsTranslate(http, navegador, ajustes),
             mlKit = TraductorMlKit(),
             ajustes = ajustes,
+            buscadorOriginal = BuscadorDeOriginal(musicBrainz),
         )
+        generos = ProveedorDeGeneros(http, musicBrainz, navegador, java.io.File(cacheDir, "beatport_ultima.html"))
         crearCanal()
         Registro.info(Registro.APP, "Aplicación iniciada")
     }

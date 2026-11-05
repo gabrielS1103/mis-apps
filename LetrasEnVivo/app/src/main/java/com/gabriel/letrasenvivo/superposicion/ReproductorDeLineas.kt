@@ -24,6 +24,9 @@ class ReproductorDeLineas(
 ) {
     private val _indice = MutableStateFlow(-1)
     val indice: StateFlow<Int> = _indice
+    private val _pausa = MutableStateFlow(false)
+    /** true si la línea actual ya terminó hace rato y la siguiente no llega: parte instrumental. */
+    val pausa: StateFlow<Boolean> = _pausa
 
     private var bucle: Job? = null
 
@@ -31,7 +34,7 @@ class ReproductorDeLineas(
         ambito.launch {
             combine(letra, reproduccion, EstadoSuperposicion.desfaseCancionMs) { l, r, _ -> l to r }.collect { (l, r) ->
                 bucle?.cancel()
-                if (l == null || !l.tieneTiempos) { _indice.value = -1; return@collect }
+                if (l == null || !l.tieneTiempos) { _indice.value = -1; _pausa.value = false; return@collect }
                 bucle = launch { seguir(l, r) }
             }
         }
@@ -40,7 +43,15 @@ class ReproductorDeLineas(
     /** Fuerza el recálculo (p. ej. tras cambiar el desfase). */
     fun recalcular() {
         val l = letra.value ?: return
-        _indice.value = indicePara(l, reproduccion.value.posicionAhora() + desfaseMs())
+        val posicion = reproduccion.value.posicionAhora() + desfaseMs()
+        _indice.value = indicePara(l, posicion)
+        _pausa.value = enPausa(l, _indice.value, posicion)
+    }
+
+    /** Ninguna línea se canta más de [LINEA_MAXIMA_MS]: pasado eso, la letra no tiene marcada la pausa que sigue. */
+    private fun enPausa(l: Letra, i: Int, posicion: Long): Boolean {
+        val inicio = l.lineas.getOrNull(i)?.tiempoMs ?: return false
+        return posicion - inicio > LINEA_MAXIMA_MS
     }
 
     private suspend fun seguir(l: Letra, r: EstadoReproduccion) {
@@ -49,11 +60,17 @@ class ReproductorDeLineas(
             val posicion = r.posicionAhora(SystemClock.elapsedRealtime()) + desfaseMs()
             val i = indicePara(l, posicion)
             if (_indice.value != i) _indice.value = i
+            val pausa = enPausa(l, i, posicion)
+            if (_pausa.value != pausa) _pausa.value = pausa
             if (!r.reproduciendo) return
             val siguiente = tiempos.getOrNull(i + 1) ?: Long.MAX_VALUE
-            val espera = if (siguiente == Long.MAX_VALUE) 1000L else (siguiente - posicion).coerceIn(30L, 400L)
+            val espera = if (siguiente == Long.MAX_VALUE) 400L else (siguiente - posicion).coerceIn(30L, 400L)
             delay(espera)
         }
+    }
+
+    companion object {
+        const val LINEA_MAXIMA_MS = 12_000L
     }
 
     /** Última línea cuyo tiempo es <= posición (búsqueda binaria); -1 antes de la primera. */

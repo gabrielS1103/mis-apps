@@ -27,6 +27,9 @@ data class CancionDetectada(
     /** Además sin sufijos de versión: " - Radio Edit", "(Extended Mix)", "(Remastered 2009)"… */
     val tituloBase: String get() = quitarVersion(tituloSinColaboradores)
 
+    /** Qué versión es ("alesso" para "(Alesso Remix)", "live"…); null si es la original. Ver [Versiones]. */
+    val version: String? get() = Versiones.clave(titulo)
+
     /** Remix, mix o versión extendida: otra canción en cuanto a tiempos. */
     val esRemix: Boolean get() = Regex("""\b(remix|mix|rework|bootleg|vip|extended|dub)\b""", RegexOption.IGNORE_CASE).containsMatchIn(titulo)
 

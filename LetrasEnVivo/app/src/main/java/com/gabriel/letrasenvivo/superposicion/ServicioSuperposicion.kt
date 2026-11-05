@@ -13,7 +13,6 @@ import androidx.core.app.ServiceCompat
 import com.gabriel.letrasenvivo.AplicacionLetras
 import com.gabriel.letrasenvivo.R
 import com.gabriel.letrasenvivo.Registro
-import com.gabriel.letrasenvivo.ajustes.ActividadAjustes
 import com.gabriel.letrasenvivo.ajustes.Permisos
 import com.gabriel.letrasenvivo.deteccion.CancionDetectada
 import com.gabriel.letrasenvivo.deteccion.MonitorDeSesiones
@@ -41,6 +40,7 @@ class ServicioSuperposicion : Service() {
     private lateinit var vista: VistaSuperposicion
     private lateinit var reproductor: ReproductorDeLineas
     private var tareaLetra: Job? = null
+    private var tareaGenero: Job? = null
     private var tareaOcultar: Job? = null
     private var encendido = false
 
@@ -53,8 +53,6 @@ class ServicioSuperposicion : Service() {
         monitor =MonitorDeSesiones(this) { app.ajustes.actual.appsObjetivo }
         vista = VistaSuperposicion(
             this,
-            alCerrar = { apagar() },
-            alAbrirAjustes = { startActivity(Intent(this, ActividadAjustes::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
             alCambiarDesfase = { cambiarDesfase(it) },
             alMoverse = { x, y -> app.ajustes.guardarPosicion(x, y) },
             alSincronizarLinea = { sincronizarLinea(it) },
@@ -70,7 +68,7 @@ class ServicioSuperposicion : Service() {
      */
     private fun ponerEnPrimerPlano(cancion: CancionDetectada?) {
         ServiceCompat.startForeground(
-            this, NotificacionServicio.ID, NotificacionServicio.construir(this, cancion?.let { "${it.artista} – ${it.titulo}" }),
+            this, NotificacionServicio.ID, NotificacionServicio.construir(this, cancion?.let { "${it.titulo} – ${it.artista}" }),
             if (Build.VERSION.SDK_INT >= 34) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0,
         )
     }
@@ -127,16 +125,18 @@ class ServicioSuperposicion : Service() {
             monitor.cancion.collectLatest { c ->
                 EstadoSuperposicion.cancion.value = c
                 EstadoSuperposicion.metadatosCrudos = monitor.metadatosCrudos
-                vista.mostrarCancion(c?.let { "${it.artista} – ${it.titulo}" })
+                vista.mostrarCancion(c)
                 notificar(c)
                 actualizarPanel()
                 cargarLetra(c, ignorarCache = false)
+                cargarGenero(c)
             }
         }
         // Ajustes en vivo.
         ambito.launch { app.ajustes.flujo.collect { vista.aplicarConfiguracion(it); vista.mostrarDesfase(it.desfaseGlobalMs + EstadoSuperposicion.desfaseCancionMs.value); monitor.refrescar() } }
         // Línea actual.
         ambito.launch { reproductor.indice.collect { EstadoSuperposicion.indiceLinea.value = it; vista.marcarLinea(it) } }
+        ambito.launch { reproductor.pausa.collect { vista.marcarPausa(it) } }
         // Permiso revocado.
         ambito.launch { monitor.sinPermiso.collect { if (it) mostrarMensaje(getString(R.string.falta_acceso_notificaciones)) } }
         // Sin música: esconder la ventana pasado un rato.
@@ -150,7 +150,7 @@ class ServicioSuperposicion : Service() {
         }
     }
 
-    private fun cargarLetra(c: CancionDetectada?, ignorarCache: Boolean) {
+    private fun cargarLetra(c: CancionDetectada?, ignorarCache: Boolean, intento: Int = 0) {
         tareaLetra?.cancel()
         if (c == null) {
             EstadoSuperposicion.letra.value = null
@@ -168,10 +168,27 @@ class ServicioSuperposicion : Service() {
                     is EstadoLetra.Parcial -> mostrarLetra(estado.letra)
                     is EstadoLetra.Lista -> mostrarLetra(estado.letra)
                     is EstadoLetra.SinLetra -> { EstadoSuperposicion.letra.value = null; mostrarMensaje(getString(R.string.sin_letra)) }
-                    is EstadoLetra.Error -> { EstadoSuperposicion.letra.value = null; mostrarMensaje(getString(R.string.sin_conexion)) }
+                    is EstadoLetra.Error -> {
+                        EstadoSuperposicion.letra.value = null
+                        // Sin red o con una fuente caída: se reintenta solo mientras siga sonando la misma canción.
+                        // Tras el último intento se deja de prometer un reintento.
+                        mostrarMensaje(when {
+                            intento >= 3 -> getString(R.string.sin_letra)
+                            estado.mensaje == "Sin conexión" -> getString(R.string.sin_conexion)
+                            else -> getString(R.string.sin_letra_por_ahora, estado.mensaje)
+                        })
+                        if (intento < 3) { delay(30_000L * (intento + 1)); cargarLetra(c, ignorarCache = true, intento = intento + 1) }
+                    }
                 }
             }
         }
+    }
+
+    private fun cargarGenero(c: CancionDetectada?) {
+        tareaGenero?.cancel()
+        vista.mostrarGenero(null)
+        if (c == null) return
+        tareaGenero = ambito.launch { vista.mostrarGenero(app.generos.buscar(c)) }
     }
 
     private fun reintentarSinCache() {
@@ -220,7 +237,7 @@ class ServicioSuperposicion : Service() {
     }
 
     private fun notificar(c: CancionDetectada?) {
-        getSystemService(NotificationManager::class.java).notify(NotificacionServicio.ID, NotificacionServicio.construir(this, c?.let { "${it.artista} – ${it.titulo}" }))
+        getSystemService(NotificationManager::class.java).notify(NotificacionServicio.ID, NotificacionServicio.construir(this, c?.let { "${it.titulo} – ${it.artista}" }))
     }
 
     private fun actualizarPanel() {
@@ -229,6 +246,7 @@ class ServicioSuperposicion : Service() {
 
     override fun onDestroy() {
         tareaLetra?.cancel()
+        tareaGenero?.cancel()
         monitor.detener()
         vista.ocultar()
         ambito.cancel()

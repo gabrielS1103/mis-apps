@@ -43,6 +43,10 @@ data class Letra(
     val versionDistinta: Boolean = false,
     /** Desfase propuesto para esa otra grabación (negativo = la voz empieza más tarde que en la letra). */
     val desfaseSugeridoMs: Long = 0,
+    /** Si la letra es de la versión original (la de un remix o un cover sin letra propia): "Hurt – Nine Inch Nails". */
+    val letraDe: String? = null,
+    /** La fuente tenía tiempos, pero imposibles (líneas pegadas): se muestra sin sincronizar. */
+    val tiemposDescartados: Boolean = false,
 ) {
     val tieneTraduccion: Boolean get() = lineas.any { it.traducida != null }
     val tieneTiempos: Boolean get() = lineas.any { it.tiempoMs != null }
