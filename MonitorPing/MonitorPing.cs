@@ -2611,6 +2611,8 @@ namespace MonitorPing
             menu.Items.Add("Prueba de pérdida de paquetes...", null, delegate { AbrirPruebaPerdida(); });
             menu.Items.Add("Prueba de velocidad (sin Speedtest)...", null, delegate { AbrirPruebaVelocidad(); });
             menu.Items.Add("Ruta en vivo (dónde se pierde)...", null, delegate { AbrirRuta(); });
+            menu.Items.Add("Resultados de la comunidad...", null, delegate { Comunidad.Abrir(); });
+            menu.Items.Add("Comparar resultados con otra persona...", null, delegate { Compartir.AbrirComparar(null); });
             menu.Items.Add("Probar ratón...", null, delegate { AbrirPruebaRaton(); });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add(itemAnalisis);
@@ -3431,6 +3433,8 @@ namespace MonitorPing
             timer.Stop();
             if (pruebaPerdida != null) pruebaPerdida.Close();
             if (pruebaVelocidad != null) pruebaVelocidad.Close();
+            Compartir.CerrarComparar();
+            Comunidad.Cerrar();
             if (rutaForm != null) rutaForm.Close();
             ruta.Parar();
             Native.UnhookWinEvent(ganchoMostrar);
@@ -4366,7 +4370,7 @@ namespace MonitorPing
             finally { Marshal.FreeHGlobal(buf); IcmpCloseHandle(h); }
         }
 
-        static bool Privada(string ip)
+        internal static bool Privada(string ip)
         {
             byte[] b = IPAddress.Parse(ip).GetAddressBytes();
             return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) || (b[0] == 100 && b[1] >= 64 && b[1] < 128);
@@ -4408,7 +4412,7 @@ namespace MonitorPing
         static extern int DnsQuery(string nombre, ushort tipo, uint opciones, IntPtr extra, out IntPtr resultados, IntPtr reservado);
         [DllImport("dnsapi.dll")] static extern void DnsRecordListFree(IntPtr lista, int tipo);
 
-        static string Txt(string nombre)
+        internal static string Txt(string nombre)
         {
             IntPtr res;
             if (DnsQuery(nombre, 16, 0, IntPtr.Zero, out res, IntPtr.Zero) != 0 || res == IntPtr.Zero) return null;
@@ -4444,6 +4448,36 @@ namespace MonitorPing
                 if (coma > 0) n = n.Substring(0, coma);
                 string p = n.Trim().Split(' ')[0]; // "GLOBENET CABOS SUBMARINOS" -> "Globenet"
                 return p.Length > 1 ? char.ToUpper(p[0]) + p.Substring(1).ToLower() : p;
+            }
+            catch { return ""; }
+        }
+
+        // Nombre completo del dueño de una IP pública (p. ej. "Net Uno" para AS11562); vacío si no se sabe
+        internal static string NombreProveedor(string ip)
+        {
+            try
+            {
+                byte[] b = IPAddress.Parse(ip).GetAddressBytes();
+                string o = Txt(b[3] + "." + b[2] + "." + b[1] + "." + b[0] + ".origin.asn.cymru.com");
+                if (o == null) return "";
+                string asn = o.Split('|')[0].Trim().Split(' ')[0];
+                string d = Txt("AS" + asn + ".asn.cymru.com");
+                if (d == null) return "AS" + asn;
+                string[] partes = d.Split('|');
+                string n = partes[partes.Length - 1].Trim();
+                int guion = n.IndexOf(" - ");
+                if (guion >= 0) n = n.Substring(guion + 3);
+                int coma = n.IndexOf(',');
+                if (coma > 0) n = n.Substring(0, coma);
+                n = n.Trim();
+                if (n == n.ToUpper()) // "TELEFONICA VENEZOLANA" -> "Telefonica Venezolana"; siglas cortas como CANTV se quedan
+                {
+                    string[] w = n.Split(' ');
+                    for (int i = 0; i < w.Length; i++)
+                        if (w[i].Length > 5) w[i] = w[i].Substring(0, 1) + w[i].Substring(1).ToLower();
+                    n = string.Join(" ", w);
+                }
+                return n;
             }
             catch { return ""; }
         }
@@ -4773,13 +4807,15 @@ namespace MonitorPing
         CheckedListBox lstServidores;
         TextBox txtOtro;
         ComboBox cmbDuracion, cmbRitmo, cmbTamano;
-        Button btnIniciar, btnCopiar;
+        Button btnIniciar, btnCopiar, btnCompartir, btnPublicar;
         ProgressBar barra;
         Label lblTiempo, lblConclusion;
         ListView lvResultados;
         readonly List<Control> opciones = new List<Control>(); // se bloquean mientras corre la prueba
         readonly System.Windows.Forms.Timer reloj = new System.Windows.Forms.Timer();
         PruebaPerdida prueba;
+        string compartible, publicable;
+        IPAddress origenPublicar;
         DateTime inicio;
         int segundosTotal;
         string parametros = "";
@@ -4902,9 +4938,35 @@ namespace MonitorPing
             btnCopiar.AutoSize = true;
             btnCopiar.Enabled = false;
             btnCopiar.Click += delegate { Copiar(); };
+            btnCompartir = new Button();
+            btnCompartir.Text = "Compartir (sin datos privados)";
+            btnCompartir.AutoSize = true;
+            btnCompartir.Enabled = false;
+            btnCompartir.Click += delegate { if (compartible != null) Compartir.Mostrar(this, compartible); };
+            btnCompartir.Text = "Compartir...";
+            btnPublicar = new Button();
+            btnPublicar.Text = "Publicar en la comunidad";
+            btnPublicar.AutoSize = true;
+            btnPublicar.Enabled = false;
+            btnPublicar.Click += delegate { Publicar(); };
+            Button btnComparar = new Button();
+            btnComparar.Text = "Comparar con otra persona...";
+            btnComparar.AutoSize = true;
+            btnComparar.Click += delegate { Compartir.AbrirComparar(this); };
+            Button btnComunidad = new Button();
+            btnComunidad.Text = "Ver resultados de la comunidad...";
+            btnComunidad.AutoSize = true;
+            btnComunidad.Click += delegate { Comunidad.Abrir(); };
             filaBotones.Controls.Add(btnIniciar);
+            filaBotones.Controls.Add(btnPublicar);
+            filaBotones.Controls.Add(btnCompartir);
             filaBotones.Controls.Add(btnCopiar);
             panel.Controls.Add(filaBotones);
+            FlowLayoutPanel filaBotones2 = PruebaPerdidaForm.Horizontal();
+            filaBotones2.Margin = new Padding(0, 0, 0, 4);
+            filaBotones2.Controls.Add(btnComunidad);
+            filaBotones2.Controls.Add(btnComparar);
+            panel.Controls.Add(filaBotones2);
 
             barra = new ProgressBar();
             barra.Width = ancho;
@@ -5058,6 +5120,11 @@ namespace MonitorPing
                          (prueba.Origen != null ? "por el Wi-Fi/cable, sin VPN" : "ruta normal");
             foreach (Control c in opciones) c.Enabled = false;
             btnCopiar.Enabled = false;
+            btnCompartir.Enabled = false;
+            compartible = null;
+            btnPublicar.Enabled = false;
+            btnPublicar.Text = "Publicar en la comunidad";
+            publicable = null;
             btnIniciar.Text = "Detener";
             lblConclusion.Text = "";
             barra.Value = 0;
@@ -5106,7 +5173,91 @@ namespace MonitorPing
                 Color color;
                 lblConclusion.Text = prueba.Conclusion(out color);
                 lblConclusion.ForeColor = color;
+                PrepararCompartir();
             }
+        }
+
+        // Quita las IP: "Cloudflare (1.1.1.1)" -> "Cloudflare"; una IP privada suelta -> "un equipo de tu red"
+        internal static string SinIp(string t)
+        {
+            t = System.Text.RegularExpressions.Regex.Replace(t, @" ?\((?:\d{1,3}\.){3}\d{1,3}\)", "");
+            return System.Text.RegularExpressions.Regex.Replace(t, @"\b(?:\d{1,3}\.){3}\d{1,3}\b", delegate(System.Text.RegularExpressions.Match m)
+            {
+                IPAddress ip;
+                return IPAddress.TryParse(m.Value, out ip) && IcmpDesde.Privada(m.Value) ? "un equipo de tu red" : m.Value;
+            });
+        }
+
+        // Texto para compartir: sin el router, sin IP privadas y sin tu IP; el nombre del proveedor se busca aparte
+        void Publicar()
+        {
+            Comunidad.PreguntarYPublicar(this, publicable, origenPublicar, delegate(bool ok, string msg)
+            {
+                lblTiempo.Text = msg;
+                if (ok) { btnPublicar.Enabled = false; btnPublicar.Text = "Publicado"; }
+            });
+        }
+
+        void PrepararCompartir()
+        {
+            List<Comunidad.Fila> pub = new List<Comunidad.Fila>();
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Servidor | Zona | Pérdida | Prom | Mín | Máx | Jitter | Racha");
+            foreach (PruebaPerdida.Destino d in prueba.Destinos)
+            {
+                if (d.Region == "local" || d.Nombre.StartsWith("Router")) continue;
+                IPAddress ip;
+                if (IPAddress.TryParse(d.Host, out ip))
+                {
+                    if (ip.AddressFamily != AddressFamily.InterNetwork) continue;
+                    if (IcmpDesde.Privada(d.Host) && !d.Nombre.StartsWith("Tu proveedor")) continue; // equipos de tu casa
+                }
+                string nombre = SinIp(d.Nombre).Replace("|", "/").Trim();
+                if (nombre == "" || nombre == "un equipo de tu red") continue;
+                string zona = d.Region == "ve" ? "Venezuela" : "Fuera";
+                if (d.Error != null) { sb.AppendLine(nombre + " | " + zona + " | " + d.Error); continue; }
+                PruebaPerdida.Estadistica e = PruebaPerdida.Calcular(d);
+                if (e.Respondidos + e.Perdidos == 0) continue;
+                if (e.Respondidos > 0 && e.Respondidos + e.Perdidos >= 10)
+                {
+                    Comunidad.Fila f = new Comunidad.Fila();
+                    f.S = nombre;
+                    f.Z = d.Region == "ve" ? "ve" : "fuera";
+                    f.P = e.Perdida;
+                    f.M = e.Promedio;
+                    if (e.Respondidos > 1) f.J = e.Jitter;
+                    pub.Add(f);
+                }
+                sb.AppendLine(nombre + " | " + zona + " | " + (e.Respondidos == 0 ? "no responde" : Calidad.Porcentaje(e.Perdida)) + " | " +
+                    (e.Respondidos > 0 ? Math.Round(e.Promedio).ToString() : "–") + " | " + Ms(e.Min) + " | " + Ms(e.Max) + " | " +
+                    (e.Respondidos > 1 ? Math.Round(e.Jitter).ToString() : "–") + " | " + e.RachaMax);
+            }
+            sb.AppendLine();
+            sb.AppendLine("Conclusión: " + SinIp(lblConclusion.Text));
+            sb.AppendLine("(tiempos en ms)");
+            string cuerpo = sb.ToString(), param = parametros;
+            IPAddress origen = prueba.Origen;
+            PruebaPerdida esta = prueba;
+            publicable = Comunidad.Json("perdida", segundosTotal, pub);
+            origenPublicar = origen;
+            btnPublicar.Enabled = publicable != null;
+            Thread t = new Thread(delegate ()
+            {
+                string texto = Compartir.Encabezado("pérdida de paquetes", Compartir.Proveedor(origen), param) + cuerpo;
+                Compartir.UltimaPerdida = texto;
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (IsDisposed || prueba != esta) return;
+                        compartible = texto;
+                        btnCompartir.Enabled = true;
+                    });
+                }
+                catch { } // ventana cerrada
+            });
+            t.IsBackground = true;
+            t.Start();
         }
 
         void Copiar()
@@ -5288,7 +5439,7 @@ namespace MonitorPing
             return System.Text.RegularExpressions.Regex.Unescape(m.Groups[1].Value);
         }
 
-        static HttpWebRequest Pedido(string url, IPAddress origen)
+        internal static HttpWebRequest Pedido(string url, IPAddress origen)
         {
             HttpWebRequest r = (HttpWebRequest)WebRequest.Create(url);
             r.Proxy = null;
@@ -5307,7 +5458,7 @@ namespace MonitorPing
             return r;
         }
 
-        static string Texto(string url, IPAddress origen)
+        internal static string Texto(string url, IPAddress origen)
         {
             try
             {
@@ -5581,7 +5732,7 @@ namespace MonitorPing
         CheckedListBox lstServidores;
         CheckBox chkSinVpn;
         ComboBox cmbDuracion;
-        Button btnIniciar, btnCopiar;
+        Button btnIniciar, btnCopiar, btnCompartir, btnPublicar;
         ProgressBar barra;
         Label lblEstado, lblConclusion, lblBuscando;
         ListView lvResultados;
@@ -5589,7 +5740,8 @@ namespace MonitorPing
         readonly System.Windows.Forms.Timer reloj = new System.Windows.Forms.Timer();
         PruebaVelocidad prueba;
         IPAddress salidaFisica;
-        string parametros = "";
+        string parametros = "", compartible, publicable;
+        IPAddress origenPublicar;
 
         public PruebaVelocidadForm(string vpn)
         {
@@ -5684,9 +5836,35 @@ namespace MonitorPing
             btnCopiar.AutoSize = true;
             btnCopiar.Enabled = false;
             btnCopiar.Click += delegate { Copiar(); };
+            btnCompartir = new Button();
+            btnCompartir.Text = "Compartir (sin datos privados)";
+            btnCompartir.AutoSize = true;
+            btnCompartir.Enabled = false;
+            btnCompartir.Click += delegate { if (compartible != null) Compartir.Mostrar(this, compartible); };
+            btnCompartir.Text = "Compartir...";
+            btnPublicar = new Button();
+            btnPublicar.Text = "Publicar en la comunidad";
+            btnPublicar.AutoSize = true;
+            btnPublicar.Enabled = false;
+            btnPublicar.Click += delegate { Publicar(); };
+            Button btnComparar = new Button();
+            btnComparar.Text = "Comparar con otra persona...";
+            btnComparar.AutoSize = true;
+            btnComparar.Click += delegate { Compartir.AbrirComparar(this); };
+            Button btnComunidad = new Button();
+            btnComunidad.Text = "Ver resultados de la comunidad...";
+            btnComunidad.AutoSize = true;
+            btnComunidad.Click += delegate { Comunidad.Abrir(); };
             filaBotones.Controls.Add(btnIniciar);
+            filaBotones.Controls.Add(btnPublicar);
+            filaBotones.Controls.Add(btnCompartir);
             filaBotones.Controls.Add(btnCopiar);
             panel.Controls.Add(filaBotones);
+            FlowLayoutPanel filaBotones2 = PruebaPerdidaForm.Horizontal();
+            filaBotones2.Margin = new Padding(0, 0, 0, 4);
+            filaBotones2.Controls.Add(btnComunidad);
+            filaBotones2.Controls.Add(btnComparar);
+            panel.Controls.Add(filaBotones2);
 
             barra = new ProgressBar();
             barra.Width = ancho;
@@ -5792,6 +5970,11 @@ namespace MonitorPing
                          " conexiones · " + (prueba.Origen != null ? "por el Wi-Fi/cable, sin VPN" : "ruta normal");
             foreach (Control c in opciones) c.Enabled = false;
             btnCopiar.Enabled = false;
+            btnCompartir.Enabled = false;
+            compartible = null;
+            btnPublicar.Enabled = false;
+            btnPublicar.Text = "Publicar en la comunidad";
+            publicable = null;
             btnIniciar.Text = "Detener";
             lblConclusion.Text = "";
             barra.Value = 0;
@@ -5846,6 +6029,69 @@ namespace MonitorPing
             Color color;
             lblConclusion.Text = prueba.Conclusion(out color);
             lblConclusion.ForeColor = color;
+            PrepararCompartir();
+        }
+
+        void Publicar()
+        {
+            Comunidad.PreguntarYPublicar(this, publicable, origenPublicar, delegate(bool ok, string msg)
+            {
+                lblEstado.Text = msg;
+                if (ok) { btnPublicar.Enabled = false; btnPublicar.Text = "Publicado"; }
+            });
+        }
+
+        void PrepararCompartir()
+        {
+            List<Comunidad.Fila> pub = new List<Comunidad.Fila>();
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Servidor | Tipo | Ping | Con carga | Bajada | Pico | Subida");
+            foreach (PruebaVelocidad.Servidor s in prueba.Servidores)
+            {
+                if (s.Ping < 0 && s.Error == null && s.MbpsBajada < 0) continue; // no llegó a medirse
+                string bajada = s.Error != null && s.MbpsBajada < 0 ? s.Error : PruebaVelocidad.Mbps(s.MbpsBajada);
+                if (s.MbpsBajada > 0)
+                {
+                    Comunidad.Fila f = new Comunidad.Fila();
+                    f.S = s.Region + " · " + s.Nombre;
+                    f.Z = s.Region == "Venezuela" ? "ve" : "fuera";
+                    if (s.Ping >= 0) f.M = s.Ping;
+                    f.B = s.MbpsBajada;
+                    if (s.MbpsSubida > 0) f.U = s.MbpsSubida;
+                    if (s.PingCarga >= 0) f.C = s.PingCarga;
+                    f.O = s.Oficial;
+                    pub.Add(f);
+                }
+                sb.AppendLine((s.Region + " · " + s.Nombre).Replace("|", "/") + " | " + (s.Oficial ? "Speedtest" : "no oficial") + " | " +
+                    Ms(s.Ping) + " | " + Ms(s.PingCarga) + " | " + PruebaPerdidaForm.SinIp(bajada) + " | " + PruebaVelocidad.Mbps(s.PicoBajada) + " | " +
+                    (s.Subida == null ? "solo bajada" : PruebaVelocidad.Mbps(s.MbpsSubida)));
+            }
+            sb.AppendLine();
+            sb.AppendLine("Conclusión: " + PruebaPerdidaForm.SinIp(lblConclusion.Text));
+            sb.AppendLine("(ping en ms)");
+            string cuerpo = sb.ToString(), param = parametros;
+            IPAddress origen = prueba.Origen;
+            PruebaVelocidad esta = prueba;
+            publicable = prueba.Cancelado ? null : Comunidad.Json("velocidad", prueba.Segundos, pub);
+            origenPublicar = origen;
+            btnPublicar.Enabled = publicable != null;
+            Thread t = new Thread(delegate ()
+            {
+                string texto = Compartir.Encabezado("velocidad", Compartir.Proveedor(origen), param) + cuerpo;
+                Compartir.UltimaVelocidad = texto;
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (IsDisposed || prueba != esta) return;
+                        compartible = texto;
+                        btnCompartir.Enabled = true;
+                    });
+                }
+                catch { }
+            });
+            t.IsBackground = true;
+            t.Start();
         }
 
         void Copiar()
@@ -5877,6 +6123,873 @@ namespace MonitorPing
         {
             if (disposing) reloj.Dispose();
             base.Dispose(disposing);
+        }
+    }
+
+    // Resultados para compartir con otra persona y comparar con los suyos. Todo queda dentro de la app: no se sube nada a
+    // ningún sitio; se copia un texto que la persona pega donde quiera (WhatsApp, Discord...). El texto lleva solo lo que
+    // va de tu proveedor hacia fuera: nunca tu IP, ni el router, ni el Wi-Fi.
+    static class Compartir
+    {
+        public const string Cabecera = "MonitorPing · resultado para compartir";
+        public const string Aviso = "No incluye tu IP ni datos de tu router o tu Wi-Fi.";
+        public static string UltimaPerdida, UltimaVelocidad; // solo en memoria: se pierden al cerrar la app
+        static readonly Dictionary<string, string> proveedores = new Dictionary<string, string>();
+        static CompararForm comparar;
+
+        // Nombre del proveedor y país (p. ej. "Net Uno · VE"). La IP pública solo se usa aquí para preguntar el nombre
+        // (Cloudflare y Team Cymru) y no se guarda ni se escribe en ningún lado.
+        public static string Proveedor(IPAddress origen)
+        {
+            string clave = origen == null ? "" : origen.ToString();
+            lock (proveedores) if (proveedores.ContainsKey(clave)) return proveedores[clave];
+            string res = "";
+            string traza = PruebaVelocidad.Texto("https://1.1.1.1/cdn-cgi/trace", origen);
+            if (traza != null)
+            {
+                string ip = null, pais = null;
+                foreach (string l in traza.Split('\n'))
+                {
+                    if (l.StartsWith("ip=")) ip = l.Substring(3).Trim();
+                    else if (l.StartsWith("loc=")) pais = l.Substring(4).Trim();
+                }
+                IPAddress dir;
+                string nombre = ip != null && IPAddress.TryParse(ip, out dir) && dir.AddressFamily == AddressFamily.InterNetwork ? IcmpDesde.NombreProveedor(ip) : "";
+                res = nombre + (nombre != "" && !string.IsNullOrEmpty(pais) ? " · " + pais : "");
+            }
+            if (res != "") lock (proveedores) proveedores[clave] = res;
+            return res;
+        }
+
+        public static string Encabezado(string prueba, string proveedor, string parametros)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine(Cabecera);
+            sb.AppendLine("Prueba: " + prueba);
+            sb.AppendLine("Proveedor: " + (proveedor == "" ? "desconocido" : proveedor));
+            sb.AppendLine("Fecha: " + parametros.Replace("por el Wi-Fi/cable, sin VPN", "sin VPN"));
+            sb.AppendLine(Aviso);
+            sb.AppendLine();
+            return sb.ToString();
+        }
+
+        public static void AbrirComparar(IWin32Window dueno)
+        {
+            if (comparar != null)
+            {
+                if (comparar.WindowState == FormWindowState.Minimized) comparar.WindowState = FormWindowState.Normal;
+                comparar.Activate();
+                return;
+            }
+            comparar = new CompararForm();
+            comparar.FormClosed += delegate { comparar.Dispose(); comparar = null; };
+            comparar.Show();
+        }
+
+        public static void CerrarComparar() { if (comparar != null) comparar.Close(); }
+
+        public static void Mostrar(IWin32Window dueno, string texto)
+        {
+            using (CompartirForm f = new CompartirForm(texto)) f.ShowDialog(dueno);
+        }
+
+        // Un resultado pegado: tipo de prueba, proveedor y la tabla "a | b | c"
+        public class Leido
+        {
+            public string Prueba = "", Proveedor = "", Fecha = "";
+            public string[] Columnas;
+            public readonly List<string[]> Filas = new List<string[]>();
+
+            public string Celda(string[] fila, string columna)
+            {
+                int i = Array.IndexOf(Columnas, columna);
+                return i >= 0 && i < fila.Length ? fila[i] : "";
+            }
+
+            public string[] Fila(string servidor)
+            {
+                foreach (string[] f in Filas) if (string.Equals(f[0], servidor, StringComparison.OrdinalIgnoreCase)) return f;
+                return null;
+            }
+
+            public bool EsPerdida { get { return Prueba.StartsWith("pérdida"); } }
+        }
+
+        public static Leido Leer(string texto)
+        {
+            if (string.IsNullOrEmpty(texto) || texto.IndexOf(Cabecera, StringComparison.Ordinal) < 0) return null;
+            Leido r = new Leido();
+            foreach (string crudo in texto.Replace("\r", "").Split('\n'))
+            {
+                string l = crudo.Trim();
+                if (l.StartsWith("Prueba: ")) r.Prueba = l.Substring(8).Trim();
+                else if (l.StartsWith("Proveedor: ")) r.Proveedor = l.Substring(11).Trim();
+                else if (l.StartsWith("Fecha: ")) r.Fecha = l.Substring(7).Trim();
+                else if (l.StartsWith("Servidor |")) r.Columnas = Partes(l);
+                else if (r.Columnas != null && l.Contains(" | ") && !l.StartsWith("Conclusión")) r.Filas.Add(Partes(l));
+            }
+            return r.Columnas == null || r.Filas.Count == 0 ? null : r;
+        }
+
+        static string[] Partes(string l)
+        {
+            string[] p = l.Split('|');
+            for (int i = 0; i < p.Length; i++) p[i] = p[i].Trim();
+            return p;
+        }
+
+        // Primer número de un texto ("0,4%" -> 0.4, "412 Mbps" -> 412); -1 si no hay
+        public static double Num(string s)
+        {
+            System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(s ?? "", @"\d+(?:[.,]\d+)?");
+            if (!m.Success) return -1;
+            double v;
+            return double.TryParse(m.Value.Replace(',', '.'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v) ? v : -1;
+        }
+    }
+
+    // Muestra exactamente lo que se va a compartir antes de copiarlo
+    class CompartirForm : VentanaTema
+    {
+        public CompartirForm(string texto)
+        {
+            Text = "MonitorPing - Compartir resultado";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            MinimizeBox = false;
+            ShowIcon = false;
+            ShowInTaskbar = false;
+            StartPosition = FormStartPosition.CenterParent;
+            Font = new Font("Segoe UI", 9f);
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            float k;
+            using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) k = g.DpiX / 96f;
+            int ancho = (int)(640 * k);
+
+            FlowLayoutPanel panel = new FlowLayoutPanel();
+            panel.FlowDirection = FlowDirection.TopDown;
+            panel.WrapContents = false;
+            panel.AutoSize = true;
+            panel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panel.Padding = new Padding(12, 10, 12, 10);
+            panel.Controls.Add(PruebaPerdidaForm.Etiqueta("Esto es todo lo que se comparte. No lleva tu IP, ni datos de tu router o tu Wi-Fi: " +
+                "solo el nombre de tu proveedor y lo que pasa de él hacia fuera. No se envía a ningún sitio: se copia y tú lo pegas donde quieras. " +
+                "La otra persona lo pega en MonitorPing > Comparar resultados para verlo junto al suyo.", ancho, false));
+
+            TextBox txt = new TextBox();
+            txt.Multiline = true;
+            txt.ReadOnly = true;
+            txt.WordWrap = false;
+            txt.ScrollBars = ScrollBars.None;
+            txt.Font = new Font("Consolas", 9f);
+            txt.Text = texto.Replace("\r\n", "\n").Replace("\n", "\r\n");
+            txt.Width = ancho;
+            int lineas = Math.Min(26, txt.Lines.Length + 1);
+            txt.Height = (int)(lineas * txt.Font.GetHeight() * (k > 0 ? 1 : 1)) + 8;
+            panel.Controls.Add(txt);
+
+            FlowLayoutPanel fila = PruebaPerdidaForm.Horizontal();
+            fila.Margin = new Padding(0, 8, 0, 0);
+            Label estado = PruebaPerdidaForm.EtiquetaCentrada("");
+            Button copiar = new Button();
+            copiar.Text = "Copiar";
+            copiar.Tag = "principal";
+            copiar.AutoSize = true;
+            copiar.Click += delegate
+            {
+                try { Clipboard.SetText(txt.Text); estado.Text = "Copiado: pégalo donde quieras (Ctrl+V)."; }
+                catch { estado.Text = "No se pudo copiar; vuelve a intentarlo."; }
+            };
+            Button cerrar = new Button();
+            cerrar.Text = "Cerrar";
+            cerrar.AutoSize = true;
+            cerrar.DialogResult = DialogResult.Cancel;
+            CancelButton = cerrar;
+            fila.Controls.Add(copiar);
+            fila.Controls.Add(cerrar);
+            fila.Controls.Add(estado);
+            panel.Controls.Add(fila);
+            Controls.Add(panel);
+            AcceptButton = copiar;
+            AplicarTema();
+            Shown += delegate { copiar.Focus(); txt.SelectionLength = 0; };
+        }
+    }
+
+    // Pega el resultado de otra persona y lo pone al lado del tuyo
+    class CompararForm : VentanaTema
+    {
+        TextBox txtOtro;
+        Label lblInfo, lblConclusion;
+        ListView lv;
+
+        public CompararForm()
+        {
+            Text = "MonitorPing - Comparar resultados";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            ShowIcon = false;
+            StartPosition = FormStartPosition.CenterScreen;
+            Font = new Font("Segoe UI", 9f);
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            float k;
+            using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) k = g.DpiX / 96f;
+            int ancho = (int)(620 * k);
+
+            FlowLayoutPanel panel = new FlowLayoutPanel();
+            panel.FlowDirection = FlowDirection.TopDown;
+            panel.WrapContents = false;
+            panel.AutoSize = true;
+            panel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panel.Padding = new Padding(12, 10, 12, 10);
+            panel.Controls.Add(PruebaPerdidaForm.Etiqueta("Pega el resultado que te mandó otra persona (botón Compartir de la prueba de pérdida o de velocidad). " +
+                "Se compara con tu última prueba del mismo tipo. No se conecta a nada ni guarda nada.", ancho, false));
+
+            txtOtro = new TextBox();
+            txtOtro.Multiline = true;
+            txtOtro.WordWrap = false;
+            txtOtro.ScrollBars = ScrollBars.None;
+            txtOtro.Font = new Font("Consolas", 8.5f);
+            txtOtro.Width = ancho;
+            txtOtro.Height = (int)(96 * k);
+            txtOtro.TextChanged += delegate { Comparar(); };
+            panel.Controls.Add(txtOtro);
+
+            FlowLayoutPanel fila = PruebaPerdidaForm.Horizontal();
+            Button pegar = new Button();
+            pegar.Text = "Pegar del portapapeles";
+            pegar.Tag = "principal";
+            pegar.AutoSize = true;
+            pegar.Click += delegate
+            {
+                try { if (Clipboard.ContainsText()) { txtOtro.Text = Clipboard.GetText(); txtOtro.Select(0, 0); } } catch { }
+            };
+            Button borrar = new Button();
+            borrar.Text = "Borrar";
+            borrar.AutoSize = true;
+            borrar.Click += delegate { txtOtro.Text = ""; };
+            fila.Controls.Add(pegar);
+            fila.Controls.Add(borrar);
+            panel.Controls.Add(fila);
+
+            lblInfo = PruebaPerdidaForm.Etiqueta("", ancho, true);
+            panel.Controls.Add(lblInfo);
+
+            lv = new ListView();
+            lv.View = View.Details;
+            lv.FullRowSelect = true;
+            lv.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            lv.Width = ancho;
+            lv.Height = (int)(200 * k);
+            lv.Columns.Add("Servidor", (int)(250 * k));
+            lv.Columns.Add("Otra persona", (int)(180 * k), HorizontalAlignment.Right);
+            lv.Columns.Add("Tú", (int)(180 * k), HorizontalAlignment.Right);
+            panel.Controls.Add(lv);
+
+            lblConclusion = PruebaPerdidaForm.Etiqueta("", ancho, false);
+            lblConclusion.Font = new Font("Segoe UI Semibold", 9.5f);
+            lblConclusion.Margin = new Padding(3, 6, 3, 3);
+            panel.Controls.Add(lblConclusion);
+
+            Controls.Add(panel);
+            AplicarTema();
+            Comparar();
+            Shown += delegate { pegar.Focus(); txtOtro.Select(0, 0); };
+        }
+
+        void Comparar()
+        {
+            lv.Items.Clear();
+            lblConclusion.Text = "";
+            Compartir.Leido otro = Compartir.Leer(txtOtro.Text);
+            if (otro == null)
+            {
+                lblInfo.Text = txtOtro.Text.Trim() == "" ? "Esperando el resultado de la otra persona." :
+                    "Eso no parece un resultado de MonitorPing: tiene que empezar por \"" + Compartir.Cabecera + "\".";
+                return;
+            }
+            Compartir.Leido mio = Compartir.Leer(otro.EsPerdida ? Compartir.UltimaPerdida : Compartir.UltimaVelocidad);
+            string tipo = otro.EsPerdida ? "pérdida de paquetes" : "velocidad";
+            lblInfo.Text = "Otra persona: " + (otro.Proveedor == "" ? "proveedor desconocido" : otro.Proveedor) + " · " + otro.Fecha + "\r\n" +
+                (mio != null ? "Tú: " + (mio.Proveedor == "" ? "proveedor desconocido" : mio.Proveedor) + " · " + mio.Fecha
+                             : "Tú: todavía no hiciste una prueba de " + tipo + " desde que abriste MonitorPing; hazla para ver la tuya al lado.");
+
+            List<string> nombres = new List<string>();
+            foreach (string[] f in otro.Filas) nombres.Add(f[0]);
+            if (mio != null) foreach (string[] f in mio.Filas) if (otro.Fila(f[0]) == null) nombres.Add(f[0]);
+            foreach (string n in nombres)
+            {
+                string[] fo = otro.Fila(n), fm = mio != null ? mio.Fila(n) : null;
+                ListViewItem it = new ListViewItem(n);
+                it.SubItems.Add(fo == null ? "–" : Resumen(otro, fo));
+                it.SubItems.Add(fm == null ? "–" : Resumen(mio, fm));
+                it.ForeColor = Color(otro, fo, mio, fm);
+                lv.Items.Add(it);
+            }
+            if (mio == null) return;
+            System.Drawing.Color color;
+            lblConclusion.Text = otro.EsPerdida ? ConclusionPerdida(otro, mio, out color) : ConclusionVelocidad(otro, mio, out color);
+            lblConclusion.ForeColor = color;
+        }
+
+        static string Resumen(Compartir.Leido r, string[] f)
+        {
+            if (r.EsPerdida)
+            {
+                string p = r.Celda(f, "Pérdida"), prom = r.Celda(f, "Prom");
+                if (Compartir.Num(p) < 0) return p;
+                return p + (Compartir.Num(prom) >= 0 ? " · " + prom + " ms" : "");
+            }
+            string b = r.Celda(f, "Bajada"), s = r.Celda(f, "Subida"), ping = r.Celda(f, "Ping");
+            if (Compartir.Num(b) < 0) return b;
+            return Compartir.Num(b) + "↓" + (Compartir.Num(s) >= 0 ? " " + Compartir.Num(s) + "↑" : "") + (Compartir.Num(ping) >= 0 ? " · " + ping + " ms" : "");
+        }
+
+        // En rojo las filas donde una de las dos personas va claramente peor
+        System.Drawing.Color Color(Compartir.Leido o, string[] fo, Compartir.Leido m, string[] fm)
+        {
+            if (fo == null || fm == null) return tema.TenueVentana;
+            string col = o.EsPerdida ? "Pérdida" : "Bajada";
+            double a = Compartir.Num(o.Celda(fo, col)), b = Compartir.Num(m.Celda(fm, col));
+            if (a < 0 || b < 0) return tema.TenueVentana;
+            bool distinto = o.EsPerdida ? Math.Abs(a - b) >= 1 : Math.Max(a, b) >= Math.Min(a, b) * 1.5;
+            return distinto ? tema.TextoAviso : tema.Texto;
+        }
+
+        static bool MismoProveedor(Compartir.Leido a, Compartir.Leido b)
+        {
+            return a.Proveedor != "" && string.Equals(a.Proveedor, b.Proveedor, StringComparison.OrdinalIgnoreCase);
+        }
+
+        static string Nombre(Compartir.Leido r)
+        {
+            int i = r.Proveedor.IndexOf(" · ");
+            return r.Proveedor == "" ? "su proveedor" : i > 0 ? r.Proveedor.Substring(0, i) : r.Proveedor;
+        }
+
+        // Pérdida media fuera de Venezuela (donde se nota al jugar en la nube)
+        static double PerdidaFuera(Compartir.Leido r)
+        {
+            double suma = 0;
+            int n = 0;
+            foreach (string[] f in r.Filas)
+            {
+                if (r.Celda(f, "Zona") == "Venezuela") continue;
+                double p = Compartir.Num(r.Celda(f, "Pérdida"));
+                if (p < 0) continue;
+                suma += p;
+                n++;
+            }
+            return n == 0 ? -1 : suma / n;
+        }
+
+        string ConclusionPerdida(Compartir.Leido otro, Compartir.Leido mio, out System.Drawing.Color color)
+        {
+            double po = PerdidaFuera(otro), pm = PerdidaFuera(mio);
+            bool mismo = MismoProveedor(otro, mio);
+            // diferencia de ping en los servidores que midieron los dos
+            double dif = 0;
+            int n = 0;
+            foreach (string[] fm in mio.Filas)
+            {
+                string[] fo = otro.Fila(fm[0]);
+                if (fo == null) continue;
+                double a = Compartir.Num(otro.Celda(fo, "Prom")), b = Compartir.Num(mio.Celda(fm, "Prom"));
+                if (a < 0 || b < 0) continue;
+                dif += b - a;
+                n++;
+            }
+            string ping = n == 0 || Math.Abs(dif / n) < 5 ? "" :
+                " Tu ping es de media " + Math.Round(Math.Abs(dif / n)) + " ms " + (dif > 0 ? "más alto" : "más bajo") + " en los mismos servidores.";
+            if (po < 0 || pm < 0) { color = tema.TenueVentana; return "No hay servidores de fuera del país para comparar la pérdida." + ping; }
+            bool malO = po >= 1, malM = pm >= 1;
+            string vo = Calidad.Porcentaje(po), vm = Calidad.Porcentaje(pm);
+            if (malO && malM)
+            {
+                color = tema.TextoMal;
+                return mismo ? "A los dos se les pierden paquetes fuera de Venezuela con " + Nombre(mio) + " (" + vo + " y " + vm + "): el problema es del proveedor, no de tu casa." + ping
+                             : "A los dos se les pierden paquetes fuera del país (" + vo + " y " + vm + "), con proveedores distintos: puede ser la ruta internacional o los servidores." + ping;
+            }
+            if (malM)
+            {
+                color = tema.TextoMal;
+                return mismo ? "Con el mismo proveedor, a la otra persona no se le pierde casi nada (" + vo + ") y a ti sí (" + vm + "): el problema está en tu conexión (Wi-Fi, cable, router o tu línea)." + ping
+                             : "La otra persona, con " + Nombre(otro) + ", casi no pierde (" + vo + ") y tú sí (" + vm + "): puede ser tu conexión o tu proveedor. Compara con alguien de " + Nombre(mio) + " para saberlo." + ping;
+            }
+            if (malO)
+            {
+                color = tema.TextoAviso;
+                return "A ti te va mejor (" + vm + " frente a " + vo + "): el problema está del lado de la otra persona" + (mismo ? " (su conexión, porque tienen el mismo proveedor)." : " o de su proveedor.") + ping;
+            }
+            color = tema.TextoOk;
+            return "Ninguno de los dos pierde paquetes fuera del país (" + vm + " tú, " + vo + " la otra persona)." + ping;
+        }
+
+        static double Mejor(Compartir.Leido r, bool oficial, out string servidor)
+        {
+            double mejor = -1;
+            servidor = "";
+            foreach (string[] f in r.Filas)
+            {
+                if ((r.Celda(f, "Tipo") == "Speedtest") != oficial) continue;
+                double v = Compartir.Num(r.Celda(f, "Bajada"));
+                if (v > mejor) { mejor = v; servidor = f[0]; }
+            }
+            return mejor;
+        }
+
+        string ConclusionVelocidad(Compartir.Leido otro, Compartir.Leido mio, out System.Drawing.Color color)
+        {
+            string so, sm;
+            double vo = Mejor(otro, false, out so), vm = Mejor(mio, false, out sm);
+            if (vo < 0 || vm < 0) { color = tema.TenueVentana; return "No hay servidores no oficiales medidos por los dos para comparar."; }
+            bool mismo = MismoProveedor(otro, mio);
+            string datos = "Fuera de Speedtest tu mejor bajada fue " + PruebaVelocidad.Mbps(vm) + " y la de la otra persona " + PruebaVelocidad.Mbps(vo) + ". ";
+            if (vm * 1.5 <= vo)
+            {
+                color = tema.TextoAviso;
+                return datos + (mismo ? "Con el mismo proveedor a ti te llega bastante menos: revisa el Wi-Fi o el cable, o compara el plan que tienen contratado."
+                                      : "Con " + Nombre(otro) + " le llega bastante más (también puede ser un plan más rápido).");
+            }
+            if (vo * 1.5 <= vm)
+            {
+                color = tema.TextoOk;
+                return datos + "A ti te llega bastante más" + (mismo ? " con el mismo proveedor: su conexión (Wi-Fi, cable o plan) va peor." : ".");
+            }
+            color = tema.TextoOk;
+            return datos + "Van parecidos.";
+        }
+    }
+
+    // Resultados de la comunidad: cada quien publica (solo si pulsa el botón) el resumen de su prueba en un servidor propio
+    // de MonitorPing en Cloudflare, y cualquiera ve los promedios por proveedor y servidor. El proveedor y el país los pone
+    // el servidor según la conexión; la IP no se guarda. Código del servidor: MonitorPing\servidor\worker.js
+    static class Comunidad
+    {
+        public const string Servidor = "https://monitorping-comunidad.monitorping-comunidad.workers.dev";
+        static ComunidadForm ventana;
+
+        // Fila para publicar: servidor, zona ("ve" o "fuera") y valores (null = sin dato)
+        public class Fila
+        {
+            public string S, Z = "fuera";
+            public double? P, M, J, B, U, C;
+            public bool O;
+        }
+
+        static string Num(double? v)
+        {
+            return v.HasValue ? Math.Round(v.Value, 1).ToString(System.Globalization.CultureInfo.InvariantCulture) : "null";
+        }
+
+        // Solo letras, números y signos simples; así el servidor no rechaza nombres de Speedtest con símbolos raros
+        public static string Limpio(string s)
+        {
+            s = System.Text.RegularExpressions.Regex.Replace(s ?? "", @"[^\p{L}\p{N} ·.,()\-/&'+]", "").Trim();
+            return s.Length > 70 ? s.Substring(0, 70).Trim() : s;
+        }
+
+        public static string Json(string tipo, int duracion, List<Fila> filas)
+        {
+            return Json(tipo, duracion, filas, null);
+        }
+
+        public static string Json(string tipo, int duracion, List<Fila> filas, string destino)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append("{\"tipo\":\"").Append(tipo).Append("\",\"duracion\":").Append(duracion);
+            if (destino != null) sb.Append(",\"destino\":\"").Append(Limpio(destino).Replace("\\", "").Replace("\"", "")).Append('"');
+            sb.Append(",\"filas\":[");
+            int n = 0;
+            foreach (Fila f in filas)
+            {
+                string s = Limpio(f.S);
+                if (s.Length < 2 || n >= 40) continue;
+                if (n++ > 0) sb.Append(',');
+                sb.Append("{\"s\":\"").Append(s.Replace("\\", "").Replace("\"", "")).Append("\",\"z\":\"").Append(f.Z).Append('"');
+                if (tipo != "velocidad") sb.Append(",\"p\":").Append(Num(f.P)).Append(",\"m\":").Append(Num(f.M)).Append(",\"j\":").Append(Num(f.J));
+                else sb.Append(",\"m\":").Append(Num(f.M)).Append(",\"b\":").Append(Num(f.B)).Append(",\"u\":").Append(Num(f.U))
+                       .Append(",\"c\":").Append(Num(f.C)).Append(",\"o\":").Append(f.O ? "true" : "false");
+                sb.Append('}');
+            }
+            sb.Append("]}");
+            return n == 0 ? null : sb.ToString();
+        }
+
+        static HttpWebRequest Pedido(string url, IPAddress origen)
+        {
+            HttpWebRequest r = PruebaVelocidad.Pedido(url, origen);
+            r.ServerCertificateValidationCallback = null; // nuestro servidor: certificado comprobado como siempre
+            r.Timeout = 10000;
+            return r;
+        }
+
+        static string Campo(string json, string nombre)
+        {
+            System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(json ?? "", "\"" + nombre + "\":\"((?:[^\"\\\\]|\\\\.)*)\"");
+            return m.Success ? System.Text.RegularExpressions.Regex.Unescape(m.Groups[1].Value) : "";
+        }
+
+        // "Net Uno · Caracas, Distrito Capital (VE)" a partir de la respuesta del servidor
+        static string ComoTeVen(string json)
+        {
+            string prov = Campo(json, "proveedor"), ciudad = Campo(json, "ciudad"), region = Campo(json, "region"), pais = Campo(json, "pais");
+            if (prov == "") return "";
+            string l = ciudad;
+            if (region != "" && region != ciudad) l += (l != "" ? ", " : "") + region;
+            if (pais != "") l += (l != "" ? " (" + pais + ")" : pais);
+            return prov + (l != "" ? " · " + l : "");
+        }
+
+        // Cómo te vería la comunidad si publicas por esa salida; vacío si no se pudo saber
+        public static string Ubicacion(IPAddress origen)
+        {
+            try
+            {
+                HttpWebRequest r = Pedido(Servidor + "/ubicacion", origen);
+                using (WebResponse resp = r.GetResponse())
+                using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) return ComoTeVen(sr.ReadToEnd());
+            }
+            catch { return ""; }
+        }
+
+        // Publica por la misma salida que usó la prueba (así el proveedor es el tuyo y no el de la VPN). Devuelve el mensaje para mostrar.
+        public static string Publicar(string json, IPAddress origen, out bool ok)
+        {
+            ok = false;
+            try
+            {
+                HttpWebRequest r = Pedido(Servidor + "/publicar", origen);
+                r.Method = "POST";
+                r.ContentType = "application/json; charset=utf-8";
+                byte[] b = Encoding.UTF8.GetBytes(json);
+                r.ContentLength = b.Length;
+                using (Stream s = r.GetRequestStream()) s.Write(b, 0, b.Length);
+                using (WebResponse resp = r.GetResponse())
+                using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                {
+                    string t = sr.ReadToEnd(), como = ComoTeVen(t);
+                    ok = true;
+                    return "Publicado" + (como != "" ? " como " + como : "") + ". ¡Gracias!";
+                }
+            }
+            catch (WebException ex)
+            {
+                if (ex.Response != null)
+                    try { using (StreamReader sr = new StreamReader(ex.Response.GetResponseStream(), Encoding.UTF8)) return "No se publicó: " + sr.ReadToEnd(); } catch { }
+                return "No se pudo conectar con el servidor de la comunidad.";
+            }
+            catch { return "No se pudo publicar."; }
+        }
+
+        public class Grupo
+        {
+            public string Servidor, Zona, Proveedor, Pais, Destino = "", Region = "", Ciudad = "";
+
+            // "Caracas" o, si no se sabe la ciudad, el estado o el país
+            public string Lugar { get { return Ciudad != "" ? Ciudad : Region != "" ? Region : Pais; } }
+            public string Estado { get { return Region != "" ? Region + (Pais != "" ? " (" + Pais + ")" : "") : Pais; } }
+            public int Pruebas;
+            public double Perdida = -1, PerdidaMax = -1, Ms = -1, Jitter = -1, Bajada = -1, BajadaMax = -1, Subida = -1, Carga = -1;
+            public bool Oficial;
+            public DateTime Ultima;
+        }
+
+        // null = no se pudo leer; publicaciones y proveedores van aparte
+        public static List<Grupo> Leer(string tipo, int horas, out int publicaciones, out int proveedores)
+        {
+            publicaciones = proveedores = 0;
+            string t;
+            try
+            {
+                HttpWebRequest r = Pedido(Servidor + "/resultados?formato=tsv&tipo=" + tipo + "&horas=" + horas, null);
+                using (WebResponse resp = r.GetResponse())
+                using (StreamReader sr = new StreamReader(resp.GetResponseStream(), Encoding.UTF8)) t = sr.ReadToEnd();
+            }
+            catch { return null; }
+            List<Grupo> l = new List<Grupo>();
+            foreach (string linea in t.Split('\n'))
+            {
+                string[] c = linea.Split('\t');
+                if (c[0] == "#" && c.Length >= 3) { int.TryParse(c[1], out publicaciones); int.TryParse(c[2], out proveedores); continue; }
+                if (c.Length < 15) continue;
+                Grupo g = new Grupo();
+                g.Servidor = c[0]; g.Zona = c[1]; g.Proveedor = c[2]; g.Pais = c[3];
+                int.TryParse(c[4], out g.Pruebas);
+                g.Perdida = D(c[5]); g.PerdidaMax = D(c[6]); g.Ms = D(c[7]); g.Jitter = D(c[8]);
+                g.Bajada = D(c[9]); g.BajadaMax = D(c[10]); g.Subida = D(c[11]); g.Carga = D(c[12]);
+                g.Oficial = c[13] == "1";
+                long u;
+                if (long.TryParse(c[14], out u)) g.Ultima = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(u).ToLocalTime();
+                if (c.Length > 15) g.Destino = c[15].Trim();
+                if (c.Length > 17) { g.Region = c[16].Trim(); g.Ciudad = c[17].Trim(); }
+                l.Add(g);
+            }
+            return l;
+        }
+
+        static double D(string s)
+        {
+            double v;
+            return double.TryParse(s, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v) ? v : -1;
+        }
+
+        public static void Abrir()
+        {
+            if (ventana != null)
+            {
+                if (ventana.WindowState == FormWindowState.Minimized) ventana.WindowState = FormWindowState.Normal;
+                ventana.Activate();
+                return;
+            }
+            ventana = new ComunidadForm();
+            ventana.FormClosed += delegate { ventana.Dispose(); ventana = null; };
+            ventana.Show();
+        }
+
+        public static void Cerrar() { if (ventana != null) ventana.Close(); }
+
+        // Pregunta y publica en segundo plano; fin recibe el mensaje en el hilo de la ventana
+        public static void PreguntarYPublicar(Form dueno, string json, IPAddress origen, Action<bool, string> fin)
+        {
+            if (json == null) { fin(false, "No hay resultados para publicar."); return; }
+            // Primero se pregunta al servidor cómo te ve (proveedor, ciudad y estado), para mostrarlo en el aviso
+            Thread t0 = new Thread(delegate ()
+            {
+                string como = Ubicacion(origen);
+                try { dueno.BeginInvoke((MethodInvoker)delegate { if (!dueno.IsDisposed) Preguntar(dueno, json, origen, como, fin); }); } catch { }
+            });
+            t0.IsBackground = true;
+            t0.Start();
+        }
+
+        static void Preguntar(Form dueno, string json, IPAddress origen, string como, Action<bool, string> fin)
+        {
+            if (MessageBox.Show(dueno,
+                    "Se publicará en los resultados de la comunidad de MonitorPing, para que cualquiera los vea:\r\n\r\n" +
+                    (como != "" ? "• aparecerás como: " + como + "\r\n   (proveedor y ubicación aproximada que detecta el servidor según la conexión;\r\n   la ciudad puede no ser exacta)\r\n"
+                                : "• tu proveedor, tu país, tu estado y tu ciudad aproximados (los detecta el servidor según la conexión)\r\n") +
+                    "• la fecha y, por servidor o por tramo de la ruta, la pérdida, el ping y la velocidad\r\n\r\n" +
+                    "No se publica tu IP, ni datos de tu router o tu Wi-Fi. Los resultados se borran a los 180 días.\r\n\r\n¿Publicar?",
+                    "Publicar en la comunidad", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            Thread t = new Thread(delegate ()
+            {
+                bool ok;
+                string msg = Publicar(json, origen, out ok);
+                try { dueno.BeginInvoke((MethodInvoker)delegate { if (!dueno.IsDisposed) fin(ok, msg); }); } catch { }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+    }
+
+    class ComunidadForm : VentanaTema
+    {
+        static readonly int[] Horas = { 3, 24, 168, 720, 2160, 4320 };
+        static readonly string[] NombresHoras = { "Últimas 3 horas", "Últimas 24 horas", "Últimos 7 días", "Últimos 30 días", "Últimos 3 meses", "Últimos 6 meses" };
+        ComboBox cmbTipo, cmbHoras, cmbProveedor, cmbZona, cmbEstado;
+        Label lblTotal;
+        ListView lv;
+        List<Comunidad.Grupo> datos = new List<Comunidad.Grupo>();
+        int pedido; // para descartar respuestas viejas
+        float k;
+
+        public ComunidadForm()
+        {
+            Text = "MonitorPing - Resultados de la comunidad";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            ShowIcon = false;
+            StartPosition = FormStartPosition.CenterScreen;
+            Font = new Font("Segoe UI", 9f);
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) k = g.DpiX / 96f;
+            int ancho = (int)(760 * k);
+
+            FlowLayoutPanel panel = new FlowLayoutPanel();
+            panel.FlowDirection = FlowDirection.TopDown;
+            panel.WrapContents = false;
+            panel.AutoSize = true;
+            panel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panel.Padding = new Padding(12, 10, 12, 10);
+            panel.Controls.Add(PruebaPerdidaForm.Etiqueta("Promedios de las pruebas que publicaron otras personas con MonitorPing, por servidor y proveedor. " +
+                "Sirve para ver si a los demás de tu proveedor y tu zona también se les pierden paquetes o les va lento. " +
+                "Solo se guarda el proveedor, la ciudad y el estado aproximados y los resultados; nunca la IP. Para publicar los tuyos: botón Publicar al terminar una prueba.", ancho, false));
+
+            FlowLayoutPanel fila = PruebaPerdidaForm.Horizontal();
+            cmbTipo = PruebaPerdidaForm.Desplegable(new string[] { "Pérdida de paquetes", "Velocidad", "Ruta en vivo" }, 0, (int)(150 * k));
+            cmbHoras = PruebaPerdidaForm.Desplegable(NombresHoras, 1, (int)(130 * k));
+            cmbProveedor = PruebaPerdidaForm.Desplegable(new string[] { "Todos los proveedores" }, 0, (int)(165 * k));
+            cmbZona = PruebaPerdidaForm.Desplegable(new string[] { "Todos los servidores", "Solo Venezuela", "Solo fuera" }, 0, (int)(165 * k));
+            fila.Controls.Add(cmbTipo);
+            fila.Controls.Add(cmbHoras);
+            fila.Controls.Add(cmbProveedor);
+            fila.Controls.Add(cmbZona);
+            panel.Controls.Add(fila);
+            cmbTipo.SelectedIndexChanged += delegate { Cargar(); };
+            cmbHoras.SelectedIndexChanged += delegate { Cargar(); };
+            cmbProveedor.SelectedIndexChanged += delegate { Mostrar(); };
+            cmbZona.SelectedIndexChanged += delegate { Mostrar(); };
+
+            FlowLayoutPanel fila2 = PruebaPerdidaForm.Horizontal();
+            Button actualizar = new Button();
+            actualizar.Text = "Actualizar";
+            actualizar.Tag = "principal";
+            actualizar.AutoSize = true;
+            actualizar.Click += delegate { Cargar(); };
+            fila2.Controls.Add(actualizar);
+            cmbEstado = PruebaPerdidaForm.Desplegable(new string[] { "Todos los estados" }, 0, (int)(190 * k));
+            cmbEstado.SelectedIndexChanged += delegate { Mostrar(); };
+            fila2.Controls.Add(cmbEstado);
+            lblTotal = PruebaPerdidaForm.EtiquetaCentrada("");
+            fila2.Controls.Add(lblTotal);
+            panel.Controls.Add(fila2);
+
+            lv = new ListView();
+            lv.View = View.Details;
+            lv.FullRowSelect = true;
+            lv.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            lv.Width = ancho;
+            lv.Height = (int)(300 * k);
+            panel.Controls.Add(lv);
+            panel.Controls.Add(PruebaPerdidaForm.Etiqueta("Pérdida y ping: la media de todas las pruebas (entre paréntesis, la peor). Pruebas: cuántas personas o veces lo midieron. " +
+                "En la ruta, cada tramo es una red por la que pasa el tráfico hasta el servidor (tu proveedor, su salida internacional...): " +
+                "si la pérdida empieza en un tramo y sigue hasta el servidor, el problema está ahí. Se guardan 6 meses.", ancho, true));
+
+            Controls.Add(panel);
+            Columnas();
+            AplicarTema();
+            Shown += delegate { Cargar(); };
+        }
+
+        int columnasDe = -1;
+
+        void Columnas()
+        {
+            if (columnasDe == cmbTipo.SelectedIndex) return;
+            columnasDe = cmbTipo.SelectedIndex;
+            lv.Columns.Clear();
+            string[] c; int[] a;
+            if (cmbTipo.SelectedIndex == 2) { c = new string[] { "Destino", "Tramo de la ruta", "Proveedor", "Lugar", "Pérdida", "Ping", "Pruebas" }; a = new int[] { 150, 180, 110, 120, 70, 46, 60 }; }
+            else if (cmbTipo.SelectedIndex == 0) { c = new string[] { "Servidor", "Proveedor", "Lugar", "Pérdida", "Ping", "Jitter", "Pruebas" }; a = new int[] { 230, 120, 130, 80, 50, 50, 60 }; }
+            else { c = new string[] { "Servidor", "Proveedor", "Lugar", "Bajada", "Máx", "Subida", "Ping", "Pruebas" }; a = new int[] { 190, 110, 110, 76, 70, 70, 46, 62 }; }
+            int izq = cmbTipo.SelectedIndex == 2 ? 4 : 3;
+            for (int i = 0; i < c.Length; i++) lv.Columns.Add(c[i], (int)(a[i] * k), i < izq ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+            // Con el tema, la lista va dentro de un marco que esconde su barra: la última columna llena lo visible
+            if (lv.Parent != null && lv.Parent != lv.TopLevelControl && lv.Parent.ClientSize.Width < lv.Width)
+            {
+                int resto = lv.Parent.ClientSize.Width + 2;
+                for (int i = 0; i < lv.Columns.Count - 1; i++) resto -= lv.Columns[i].Width;
+                if (resto > 30) lv.Columns[lv.Columns.Count - 1].Width = resto;
+            }
+        }
+
+        void Cargar()
+        {
+            string tipo = cmbTipo.SelectedIndex == 0 ? "perdida" : cmbTipo.SelectedIndex == 1 ? "velocidad" : "ruta";
+            int horas = Horas[cmbHoras.SelectedIndex];
+            int este = ++pedido;
+            lblTotal.Text = "Cargando...";
+            Thread t = new Thread(delegate ()
+            {
+                int pubs, provs;
+                List<Comunidad.Grupo> l = Comunidad.Leer(tipo, horas, out pubs, out provs);
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (IsDisposed || este != pedido) return;
+                        if (l == null) { lblTotal.Text = "No se pudo conectar con el servidor de la comunidad."; datos = new List<Comunidad.Grupo>(); }
+                        else
+                        {
+                            datos = l;
+                            lblTotal.Text = pubs == 0 ? "Todavía nadie publicó en este periodo." :
+                                pubs + (pubs == 1 ? " prueba publicada" : " pruebas publicadas") + " · " + provs + (provs == 1 ? " proveedor" : " proveedores");
+                        }
+                        Proveedores();
+                        Columnas();
+                        Mostrar();
+                    });
+                }
+                catch { }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        void Proveedores()
+        {
+            Llenar(cmbProveedor, "Todos los proveedores", delegate(Comunidad.Grupo g) { return g.Proveedor; });
+            Llenar(cmbEstado, "Todos los estados", delegate(Comunidad.Grupo g) { return g.Estado; });
+        }
+
+        void Llenar(ComboBox cmb, string todos, Func<Comunidad.Grupo, string> valor)
+        {
+            string antes = cmb.SelectedItem as string;
+            List<string> l = new List<string>();
+            foreach (Comunidad.Grupo g in datos)
+            {
+                string n = valor(g);
+                if (n != "" && !l.Contains(n)) l.Add(n);
+            }
+            l.Sort(StringComparer.CurrentCultureIgnoreCase);
+            cmb.BeginUpdate();
+            cmb.Items.Clear();
+            cmb.Items.Add(todos);
+            foreach (string n in l) cmb.Items.Add(n);
+            int i = antes != null ? cmb.Items.IndexOf(antes) : 0;
+            cmb.SelectedIndex = i < 0 ? 0 : i;
+            cmb.EndUpdate();
+        }
+
+        static string Pct(double v) { return v < 0 ? "–" : Calidad.Porcentaje(v); }
+        static string N(double v) { return v < 0 ? "–" : Math.Round(v).ToString(); }
+
+        void Mostrar()
+        {
+            lv.BeginUpdate();
+            lv.Items.Clear();
+            string prov = cmbProveedor.SelectedIndex > 0 ? cmbProveedor.SelectedItem as string : null;
+            string estado = cmbEstado.SelectedIndex > 0 ? cmbEstado.SelectedItem as string : null;
+            bool perdida = cmbTipo.SelectedIndex != 1, esRuta = cmbTipo.SelectedIndex == 2;
+            foreach (Comunidad.Grupo g in datos)
+            {
+                if (prov != null && g.Proveedor != prov) continue;
+                if (estado != null && g.Estado != estado) continue;
+                if (cmbZona.SelectedIndex == 1 && g.Zona != "ve") continue;
+                if (cmbZona.SelectedIndex == 2 && g.Zona == "ve") continue;
+                ListViewItem it = new ListViewItem(esRuta ? g.Destino.Replace(" (RTX 5080)", "") : g.Servidor + (!perdida && g.Oficial ? " (Speedtest)" : ""));
+                if (esRuta) it.SubItems.Add(g.Servidor);
+                it.SubItems.Add(g.Proveedor);
+                it.SubItems.Add(g.Lugar);
+                if (esRuta)
+                {
+                    it.SubItems.Add(Pct(g.Perdida) + (g.PerdidaMax > g.Perdida && g.Pruebas > 1 ? " (" + Pct(g.PerdidaMax) + ")" : ""));
+                    it.SubItems.Add(N(g.Ms));
+                    it.ForeColor = g.Perdida >= 2 ? tema.TextoMal : g.Perdida > 0.3 ? tema.TextoAviso : tema.TextoOk;
+                }
+                else if (perdida)
+                {
+                    it.SubItems.Add(Pct(g.Perdida) + (g.PerdidaMax > g.Perdida && g.Pruebas > 1 ? " (" + Pct(g.PerdidaMax) + ")" : ""));
+                    it.SubItems.Add(N(g.Ms));
+                    it.SubItems.Add(N(g.Jitter));
+                    it.ForeColor = g.Perdida >= 2 ? tema.TextoMal : g.Perdida > 0.3 ? tema.TextoAviso : tema.TextoOk;
+                }
+                else
+                {
+                    it.SubItems.Add(PruebaVelocidad.Mbps(g.Bajada));
+                    it.SubItems.Add(PruebaVelocidad.Mbps(g.BajadaMax));
+                    it.SubItems.Add(PruebaVelocidad.Mbps(g.Subida));
+                    it.SubItems.Add(N(g.Ms));
+                    it.ForeColor = g.Oficial ? tema.TextoAviso : tema.Texto;
+                }
+                it.SubItems.Add(g.Pruebas.ToString());
+                lv.Items.Add(it);
+            }
+            lv.EndUpdate();
         }
     }
 
@@ -6576,7 +7689,7 @@ namespace MonitorPing
     {
         readonly RutaEnVivo ruta;
         ComboBox cmbDestino;
-        Label lblDestino, lblDiag;
+        Label lblDestino, lblDiag, lblPublicado;
         ListView lvSaltos, lvEventos;
         readonly System.Windows.Forms.Timer reloj = new System.Windows.Forms.Timer();
         readonly List<string> hosts = new List<string>();
@@ -6690,9 +7803,21 @@ namespace MonitorPing
                 }
                 catch { }
             };
+            Button btnPublicar = new Button();
+            btnPublicar.Text = "Publicar en la comunidad";
+            btnPublicar.AutoSize = true;
+            btnPublicar.Click += delegate { Publicar(); };
+            Button btnComunidad = new Button();
+            btnComunidad.Text = "Ver resultados de la comunidad...";
+            btnComunidad.AutoSize = true;
+            btnComunidad.Click += delegate { Comunidad.Abrir(); };
+            botones.Controls.Add(btnPublicar);
+            botones.Controls.Add(btnComunidad);
             botones.Controls.Add(btnCopiar);
             botones.Controls.Add(btnRegistro);
             panel.Controls.Add(botones);
+            lblPublicado = Etiqueta("", ancho, true);
+            panel.Controls.Add(lblPublicado);
 
             Controls.Add(panel);
             reloj.Interval = 1000;
@@ -6705,6 +7830,61 @@ namespace MonitorPing
 
         static string Ms(int v) { return v < 0 ? "–" : v.ToString(); }
         static string Pct(double p) { return p < 0 ? "–" : Calidad.Porcentaje(p); }
+
+        // Nombre del servidor de juego para la comunidad: el de la lista si es una zona conocida
+        static string NombreDestino(RutaEnVivo.Vista v)
+        {
+            for (int i = 0; i < ListaZonas.Gfn.Hosts.Length; i++)
+                if (string.Equals(ListaZonas.Gfn.Hosts[i], v.Destino, StringComparison.OrdinalIgnoreCase)) return "GFN · " + ListaZonas.Gfn.Nombres[i];
+            for (int i = 0; i < ListaZonas.Xcloud.Hosts.Length; i++)
+                if (string.Equals(ListaZonas.Xcloud.Hosts[i], v.Destino, StringComparison.OrdinalIgnoreCase)) return "xCloud · " + ListaZonas.Xcloud.Nombres[i];
+            if (v.Estado.Contains("GFN")) return "GFN (servidor de la partida)";
+            if (v.Estado.Contains("xCloud")) return "xCloud (servidor de la partida)";
+            return null;
+        }
+
+        // Se publica por tramos: cada red por la que pasa la ruta (desde tu proveedor) con la pérdida y el ping de su último
+        // salto, y el servidor al final. Sin IP ni tu router.
+        void Publicar()
+        {
+            RutaEnVivo.Vista v = ruta.Leer();
+            string destino = NombreDestino(v);
+            if (destino == null) { lblPublicado.Text = "Elige arriba una zona de GFN o xCloud (o publica mientras juegas) para que se sepa a qué servidor va la ruta."; return; }
+            if (v.Final.Perdida < 0 || v.Final.Prom < 0) { lblPublicado.Text = "Todavía no hay datos del servidor: espera al menos un minuto midiendo."; return; }
+            List<Comunidad.Fila> filas = new List<Comunidad.Fila>();
+            Comunidad.Fila tramo = null;
+            string red = null;
+            foreach (RutaEnVivo.Salto s in v.Saltos)
+            {
+                if (s.Ip == null || s.Red == "tu router" || s.Red == "..." || s.Red == "no responde" || s.Perdida < 0) continue;
+                string n = s.Red == "tu proveedor (red interna)" ? "Tu proveedor (red interna)" : s.Red;
+                if (n != red)
+                {
+                    red = n;
+                    tramo = new Comunidad.Fila();
+                    tramo.Z = s.Red.StartsWith("tu proveedor") ? "ve" : "fuera";
+                    filas.Add(tramo);
+                    tramo.S = (filas.Count).ToString("00") + " · " + n;
+                }
+                tramo.P = s.Perdida;
+                if (s.Prom >= 0) tramo.M = s.Prom;
+            }
+            Comunidad.Fila fin = new Comunidad.Fila();
+            fin.S = (filas.Count + 1).ToString("00") + " · Servidor de juego";
+            fin.P = v.Final.Perdida;
+            fin.M = v.Final.Prom;
+            filas.Add(fin);
+            // Un router que no contesta todos los pings no pierde tráfico: la pérdida real de un tramo es la que sigue
+            // hasta el servidor, así que cada tramo se queda con la menor entre la suya y la de los siguientes
+            for (int i = filas.Count - 2; i >= 0; i--)
+                if (filas[i].P.HasValue && filas[i + 1].P.HasValue && filas[i + 1].P.Value < filas[i].P.Value) filas[i].P = filas[i + 1].P;
+            IPAddress origen;
+            if (!IPAddress.TryParse(v.Origen, out origen)) origen = null;
+            Comunidad.PreguntarYPublicar(this, Comunidad.Json("ruta", 60, filas, destino), origen, delegate(bool ok, string msg)
+            {
+                lblPublicado.Text = msg;
+            });
+        }
 
         void Actualizar()
         {

@@ -1,0 +1,8 @@
+{
+  "name": "monitorping-comunidad",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "wrangler": "^4.163.0"
+  }
+}
