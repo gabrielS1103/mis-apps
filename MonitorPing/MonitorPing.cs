@@ -349,14 +349,31 @@ namespace MonitorPing
     {
         // GeForce NOW: zonas de América de status.geforcenow.com (no responden al ping ICMP)
         public static readonly ListaZonas Gfn = new ListaZonas("GeForce NOW",
+            // Todos los servidores de América de status.geforcenow.com (noviembre de 2026), agrupados como allí: estado · ciudad y número
             new string[] {
-                "LATAM South · Montevideo", "LATAM West · Santiago", "LATAM North · Bogotá",
-                "EE.UU. · Miami", "EE.UU. · Atlanta", "EE.UU. · Dallas", "EE.UU. · Virginia", "EE.UU. · Nueva Jersey", "EE.UU. · Chicago",
-                "EE.UU. · Los Ángeles", "EE.UU. · Arizona", "EE.UU. · San José", "EE.UU. · Oregón", "Canadá · Toronto", "Canadá · Montreal" },
+                "LATAM Sur · Montevideo 03", "LATAM Oeste · Santiago 01", "LATAM Norte · Bogotá 01",
+                "Florida · Miami 04 (RTX 5080)", "Florida · Miami 03",
+                "Georgia · Atlanta 04 (RTX 5080)", "Georgia · Atlanta 03",
+                "Texas · Dallas 06 (RTX 5080)", "Texas · Dallas 05", "Texas · Dallas 04",
+                "Virginia · Ashburn 04 (RTX 5080)",
+                "Nueva Jersey · Newark 04 (RTX 5080)", "Nueva Jersey · Newark 03",
+                "Illinois · Chicago 05 (RTX 5080)", "Illinois · Chicago 04",
+                "California Sur · Los Ángeles 03 (RTX 5080)",
+                "California Norte · San José 06 (RTX 5080)", "California Norte · San José 04",
+                "Arizona · Phoenix 02 (RTX 5080)", "Oregón · Portland 01 (RTX 5080)",
+                "Canadá · Toronto 01 (RTX 5080)", "Canadá · Montreal 02 (RTX 5080)" },
             new string[] {
                 "npa-aby-mvd-03", "npa-dig-scl-01", "npa-dig-bog-01",
-                "np-mia-04", "np-atl-04", "np-dal-06", "np-ash-04", "np-nwk-04", "np-chi-05",
-                "np-lax-03", "np-phx-02", "np-sjc6-06", "np-pdx-01", "np-yyz-01", "np-mon-02" },
+                "np-mia-04", "np-mia-03",
+                "np-atl-04", "np-atl-03",
+                "np-dal-06", "np-dal-05", "np-dal-04",
+                "np-ash-04",
+                "np-nwk-04", "np-nwk-03",
+                "np-chi-05", "np-chi-04",
+                "np-lax-03",
+                "np-sjc6-06", "np-sjc6-04",
+                "np-phx-02", "np-pdx-01",
+                "np-yyz-01", "np-mon-02" },
             "{0}.cloudmatchbeta.nvidiagrid.net");
 
         // Xbox Cloud corre en regiones de Azure: se mide el punto de prueba de cada región (el mismo que usa AzureSpeed)
@@ -384,7 +401,9 @@ namespace MonitorPing
         public string Ciudad(int i)
         {
             int p = Nombres[i].IndexOf("· ");
-            return p >= 0 ? Nombres[i].Substring(p + 2) : Nombres[i];
+            string n = p >= 0 ? Nombres[i].Substring(p + 2) : Nombres[i];
+            int q = n.IndexOf(" (");
+            return q > 0 ? n.Substring(0, q) : n; // "Miami 04", sin "(RTX 5080)": así cabe en el widget
         }
 
         public int Indice(string codigo)
@@ -458,6 +477,7 @@ namespace MonitorPing
         public string ZonaGfn = "";     // código de zona; vacío = la de menor ping
         public string ZonaXcloud = "";
         public int WidgetX = int.MinValue, WidgetY = int.MinValue;
+        public int AnclaAbajo = -1, AnclaDerecha = -1; // pegado a la barra de tareas / al borde derecho (1 sí, 0 no, -1 sin decidir)
         public bool MostrarAlIniciar = true;
         public bool Encima = true;
         public bool Bloqueado = true;   // el ratón atraviesa el widget (modo monitor)
@@ -496,6 +516,8 @@ namespace MonitorPing
                     else if (k == "zonaxcloud") c.ZonaXcloud = v;
                     else if (k == "x") c.WidgetX = int.Parse(v);
                     else if (k == "y") c.WidgetY = int.Parse(v);
+                    else if (k == "anclaabajo") c.AnclaAbajo = int.Parse(v);
+                    else if (k == "ancladerecha") c.AnclaDerecha = int.Parse(v);
                     else if (k == "mostrar") c.MostrarAlIniciar = v == "1";
                     else if (k == "encima") c.Encima = v == "1";
                     else if (k == "bloqueado") c.Bloqueado = v == "1";
@@ -527,6 +549,8 @@ namespace MonitorPing
                     "zonaxcloud=" + ZonaXcloud,
                     "x=" + WidgetX,
                     "y=" + WidgetY,
+                    "anclaabajo=" + AnclaAbajo,
+                    "ancladerecha=" + AnclaDerecha,
                     "mostrar=" + (MostrarAlIniciar ? "1" : "0"),
                     "encima=" + (Encima ? "1" : "0"),
                     "bloqueado=" + (Bloqueado ? "1" : "0"),
@@ -837,6 +861,7 @@ namespace MonitorPing
         public Color TextoOk, TextoAviso, TextoMal;    // estados escritos en las ventanas
         public Color ControlFondo, ControlBorde, MenuFondo;
         public int Radio;                // esquinas redondeadas; 0 = rectas
+        public Color ContornoBoton = Color.Empty; // botones secundarios solo con contorno (Empty = relleno normal)
         public string FuenteTexto = "Segoe UI", FuenteFuerte = "Segoe UI Semibold", FuenteNumeros = "Segoe UI Semibold";
         public FontStyle EstiloNumeros = FontStyle.Regular;
 
@@ -911,7 +936,28 @@ namespace MonitorPing
             FuenteNumeros = "Segoe UI Variable Display", EstiloNumeros = FontStyle.Bold
         };
 
-        public static readonly Tema[] Todos = { Clasico, Aurora, CristalClaro, CristalVioleta };
+        // De la demo de streaming de música: negro casi puro con resplandores verde, morado y magenta muy suaves,
+        // botón principal verde en píldora con texto oscuro, secundarios con contorno blanco y tarjetas grafito
+        public static readonly Tema Melodia = new Tema
+        {
+            Clave = "melodia", Nombre = "Melodía", Oscuro = true, Ventanas = true,
+            Fondo = Color.FromArgb(18, 18, 18),
+            Manchas = new Color[] { Color.FromArgb(29, 185, 84), Color.FromArgb(147, 51, 234), Color.FromArgb(150, 24, 84), Color.FromArgb(20, 110, 60) },
+            AlfaManchas = 70,
+            Panel = Color.FromArgb(215, 30, 30, 30), BordePanel = Color.FromArgb(34, 255, 255, 255),
+            Texto = Color.FromArgb(255, 255, 255), TextoTenue = Color.FromArgb(179, 179, 179), Separador = Color.FromArgb(26, 255, 255, 255),
+            Acento = Color.FromArgb(30, 215, 96), Grafica = Color.FromArgb(22, 255, 255, 255),
+            Degradado = new Color[] { Color.FromArgb(30, 215, 96), Color.FromArgb(29, 185, 84) },
+            TextoDegradado = Color.FromArgb(18, 18, 18),
+            Verde = Color.FromArgb(30, 215, 96), Amarillo = Color.FromArgb(255, 184, 0), Rojo = Color.FromArgb(255, 70, 110), Gris = Color.FromArgb(120, 120, 120),
+            TextoOk = Color.FromArgb(30, 215, 96), TextoAviso = Color.FromArgb(255, 184, 0), TextoMal = Color.FromArgb(255, 90, 125),
+            ControlFondo = Color.FromArgb(36, 36, 36), ControlBorde = Color.FromArgb(70, 70, 70), MenuFondo = Color.FromArgb(24, 24, 24),
+            ContornoBoton = Color.FromArgb(190, 255, 255, 255),
+            Radio = 16, FuenteTexto = "Segoe UI Variable Text", FuenteFuerte = "Segoe UI Variable Text Semibold",
+            FuenteNumeros = "Segoe UI Variable Display", EstiloNumeros = FontStyle.Bold
+        };
+
+        public static readonly Tema[] Todos = { Clasico, Aurora, CristalClaro, CristalVioleta, Melodia };
         public static Tema Actual = Clasico;
 
         public static Tema Buscar(string clave)
@@ -1017,7 +1063,10 @@ namespace MonitorPing
         // Aplica el tema a todos los controles de una ventana
         public static void Controles(Control raiz, Tema t, Button principal)
         {
-            foreach (Control c in raiz.Controls)
+            // copia: los cuadros de texto y las listas se meten en un marco redondeado y eso cambia la colección
+            Control[] hijos = new Control[raiz.Controls.Count];
+            raiz.Controls.CopyTo(hijos, 0);
+            foreach (Control c in hijos)
             {
                 if (c is Label)
                 {
@@ -1030,9 +1079,10 @@ namespace MonitorPing
                 else if (c is Button) Boton((Button)c, t, c == principal || "principal".Equals(c.Tag));
                 else if (c is TextBox)
                 {
-                    ((TextBox)c).BorderStyle = BorderStyle.FixedSingle;
+                    ((TextBox)c).BorderStyle = BorderStyle.None;
                     c.BackColor = t.ControlFondo;
                     c.ForeColor = t.Texto;
+                    Marco.Envolver(c, t);
                 }
                 else if (c is ComboBox)
                 {
@@ -1040,15 +1090,17 @@ namespace MonitorPing
                     c.BackColor = t.ControlFondo;
                     c.ForeColor = t.Texto;
                     if (t.Oscuro) Native.SetWindowTheme(c.Handle, "DarkMode_CFD", null);
+                    PintorCombo.Aplicar((ComboBox)c, t);
                 }
                 else if (c is ListBox)
                 {
-                    ((ListBox)c).BorderStyle = BorderStyle.FixedSingle;
+                    ((ListBox)c).BorderStyle = BorderStyle.None;
                     c.BackColor = t.ControlFondo;
                     c.ForeColor = t.Texto;
-                    if (t.Oscuro) Native.SetWindowTheme(c.Handle, "DarkMode_Explorer", null);
+                    if (t.Oscuro) ModoOscuro(c.Handle);
+                    Marco.Envolver(c, t);
                 }
-                else if (c is ListView) Lista((ListView)c, t);
+                else if (c is ListView) { Lista((ListView)c, t); Marco.Envolver(c, t); }
                 else if (c is ProgressBar)
                 {
                     Native.SetWindowTheme(c.Handle, "", ""); // estilo clásico: así respeta los colores
@@ -1061,11 +1113,33 @@ namespace MonitorPing
             }
         }
 
+        [DllImport("uxtheme.dll", EntryPoint = "#135")] static extern int SetPreferredAppMode(int modo);
+        [DllImport("uxtheme.dll", EntryPoint = "#133")] static extern bool AllowDarkModeForWindow(IntPtr hwnd, bool permitir);
+        [DllImport("uxtheme.dll", EntryPoint = "#104")] static extern void RefreshImmersiveColorPolicyState();
+        static bool appOscura;
+
+        // Barras de desplazamiento oscuras en las listas: Windows solo las da si la app y la ventana admiten el modo oscuro
+        // Se llama al arrancar, antes de crear ventanas, si el tema es oscuro
+        public static void PrepararModoOscuro()
+        {
+            if (appOscura) return;
+            try { SetPreferredAppMode(2); RefreshImmersiveColorPolicyState(); } catch { } // 2 = modo oscuro siempre
+            appOscura = true;
+        }
+
+        static void ModoOscuro(IntPtr hwnd)
+        {
+            PrepararModoOscuro();
+            try { AllowDarkModeForWindow(hwnd, true); }
+            catch { } // funciones sin documentar: si no existen, queda como antes
+            Native.SetWindowTheme(hwnd, "DarkMode_Explorer", null);
+        }
+
         static void Lista(ListView lv, Tema t)
         {
             lv.BackColor = t.ControlFondo;
             lv.ForeColor = t.Texto;
-            lv.BorderStyle = BorderStyle.FixedSingle;
+            lv.BorderStyle = BorderStyle.None;
             lv.OwnerDraw = true;
             Color cabecera = Mezclar(t.ControlFondo, t.Acento, 0.18);
             lv.DrawColumnHeader += delegate(object s, DrawListViewColumnHeaderEventArgs e)
@@ -1077,10 +1151,26 @@ namespace MonitorPing
                                     (e.Header.TextAlign == HorizontalAlignment.Right ? TextFormatFlags.Right : TextFormatFlags.Left);
                 TextRenderer.DrawText(e.Graphics, e.Header.Text, lv.Font, r, t.TextoTenue, f);
             };
-            lv.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { e.DrawDefault = true; };
-            lv.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e) { e.DrawDefault = true; };
+            // Filas dibujadas a mano: así llevan una línea de separación del color del tema (las de Windows son blancas)
+            Color linea = Mezclar(t.ControlFondo, t.Texto, 0.16);
+            Color seleccion = Mezclar(t.ControlFondo, t.Acento, 0.28);
+            lv.DrawItem += delegate(object s, DrawListViewItemEventArgs e) { };
+            lv.DrawSubItem += delegate(object s, DrawListViewSubItemEventArgs e)
+            {
+                Rectangle r = e.Bounds;
+                Color fondo = e.Item.Selected ? seleccion : e.SubItem.BackColor == lv.BackColor || e.SubItem.BackColor.IsEmpty ? t.ControlFondo : e.SubItem.BackColor;
+                using (SolidBrush b = new SolidBrush(fondo)) e.Graphics.FillRectangle(b, r);
+                Rectangle rt = r;
+                rt.Inflate(-4, 0);
+                HorizontalAlignment al = lv.Columns[e.ColumnIndex].TextAlign;
+                TextFormatFlags f = TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix |
+                                    (al == HorizontalAlignment.Right ? TextFormatFlags.Right : al == HorizontalAlignment.Center ? TextFormatFlags.HorizontalCenter : TextFormatFlags.Left);
+                Color texto = e.Item.UseItemStyleForSubItems ? e.Item.ForeColor : e.SubItem.ForeColor;
+                TextRenderer.DrawText(e.Graphics, e.SubItem.Text, e.SubItem.Font ?? lv.Font, rt, texto, f);
+                using (Pen p = new Pen(linea)) e.Graphics.DrawLine(p, r.Left, r.Bottom - 1, r.Right, r.Bottom - 1);
+            };
             if (lv.Columns.Count > 0) lv.Columns[lv.Columns.Count - 1].Width = -2; // la última columna llena el resto
-            if (t.Oscuro) Native.SetWindowTheme(lv.Handle, "DarkMode_Explorer", null);
+            if (t.Oscuro) ModoOscuro(lv.Handle);
         }
 
         // Botones en forma de píldora; el principal con el degradado del tema
@@ -1102,12 +1192,28 @@ namespace MonitorPing
 
         static void DibujarBoton(Button b, Graphics g, Tema t, bool principal)
         {
+            // Primero el fondo de detrás en todo el botón: tapa el recuadro que Windows dibuja en el botón por defecto
+            // (el de Intro) y el de foco, que asomaban por las esquinas de la píldora
+            VentanaTema.FondoDetras(g, b);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             Rectangle r = b.ClientRectangle;
             r.Width -= 1;
             r.Height -= 1;
             bool sobre = b.Enabled && b.ClientRectangle.Contains(b.PointToClient(Cursor.Position));
             bool degradado = principal && t.Degradado != null && b.Enabled;
+            if (!degradado && t.ContornoBoton != Color.Empty)
+            {
+                // Secundario de solo contorno, como el "Watch Demo" de la demo
+                RectangleF rf = new RectangleF(0.75f, 0.75f, b.Width - 2.5f, b.Height - 2.5f);
+                using (GraphicsPath p = WidgetForm.Redondeado(rf, rf.Height / 2f))
+                {
+                    if (sobre) using (SolidBrush f = new SolidBrush(Color.FromArgb(26, 255, 255, 255))) g.FillPath(f, p);
+                    using (Pen borde = new Pen(sobre ? Color.White : b.Enabled ? t.ContornoBoton : Color.FromArgb(70, 255, 255, 255), 1.5f)) g.DrawPath(borde, p);
+                }
+                TextRenderer.DrawText(g, b.Text, b.Font, b.ClientRectangle, b.Enabled ? t.Texto : t.TextoTenue,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine);
+                return;
+            }
             using (GraphicsPath p = WidgetForm.Redondeado(r, r.Height / 2f))
             {
                 Brush relleno;
@@ -1165,10 +1271,47 @@ namespace MonitorPing
             if (tema.Ventanas) Estilo.BarraTitulo(Handle, tema);
         }
 
+        // El fondo con resplandores se dibuja una sola vez en una imagen: cada etiqueta, casilla o panel transparente vuelve
+        // a pedir el fondo de detrás, y repintar los degradados en cada uno hacía lenta la ventana al abrirla
+        Bitmap fondo;
+
+        Bitmap Fondo()
+        {
+            Size s = ClientSize;
+            if (s.Width < 1 || s.Height < 1) return null;
+            if (fondo != null && fondo.Size == s) return fondo;
+            if (fondo != null) fondo.Dispose();
+            fondo = new Bitmap(s.Width, s.Height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+            using (Graphics g = Graphics.FromImage(fondo)) Estilo.PintarFondo(g, new RectangleF(0, 0, s.Width, s.Height), tema, 1.7); // en las ventanas el fondo queda quieto
+            return fondo;
+        }
+
+        // Pinta en g (coordenadas del control c) el fondo de la ventana que queda detrás de c: para las esquinas
+        // de las píldoras y los desplegables, que no pueden ser transparentes de verdad
+        public static void FondoDetras(Graphics g, Control c)
+        {
+            VentanaTema v = c.FindForm() as VentanaTema;
+            Bitmap b = v != null && v.tema.Ventanas ? v.Fondo() : null;
+            if (b == null) { ButtonRenderer.DrawParentBackground(g, c.ClientRectangle, c); return; }
+            Point p = v.PointToClient(c.PointToScreen(Point.Empty));
+            Rectangle origen = Rectangle.Intersect(new Rectangle(p, c.ClientSize), new Rectangle(Point.Empty, b.Size));
+            if (origen.Width <= 0 || origen.Height <= 0) return;
+            g.DrawImage(b, new Rectangle(origen.X - p.X, origen.Y - p.Y, origen.Width, origen.Height), origen, GraphicsUnit.Pixel);
+        }
+
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             if (!tema.Ventanas) { base.OnPaintBackground(e); return; }
-            Estilo.PintarFondo(e.Graphics, ClientRectangle, tema, 1.7); // en las ventanas el fondo queda quieto
+            Bitmap b = Fondo();
+            if (b == null) return;
+            Rectangle r = Rectangle.Intersect(e.ClipRectangle, new Rectangle(Point.Empty, b.Size));
+            if (r.Width > 0 && r.Height > 0) e.Graphics.DrawImage(b, r, r, GraphicsUnit.Pixel);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing && fondo != null) { fondo.Dispose(); fondo = null; }
+            base.Dispose(disposing);
         }
 
         // El control deslizante de Windows no admite fondo transparente: se le pone el color que tiene el fondo justo detrás
@@ -1178,15 +1321,12 @@ namespace MonitorPing
             if (!tema.Ventanas) return;
             List<TrackBar> barras = new List<TrackBar>();
             BuscarBarras(this, barras);
-            if (barras.Count == 0 || ClientSize.Width < 1 || ClientSize.Height < 1) return;
-            using (Bitmap bmp = new Bitmap(ClientSize.Width, ClientSize.Height))
+            Bitmap bmp = Fondo();
+            if (barras.Count == 0 || bmp == null) return;
+            foreach (TrackBar tb in barras)
             {
-                using (Graphics g = Graphics.FromImage(bmp)) Estilo.PintarFondo(g, new RectangleF(0, 0, bmp.Width, bmp.Height), tema, 1.7);
-                foreach (TrackBar tb in barras)
-                {
-                    Point p = PointToClient(tb.Parent.PointToScreen(new Point(tb.Left + tb.Width / 2, tb.Top + tb.Height / 2)));
-                    if (p.X >= 0 && p.Y >= 0 && p.X < bmp.Width && p.Y < bmp.Height) tb.BackColor = bmp.GetPixel(p.X, p.Y);
-                }
+                Point p = PointToClient(tb.Parent.PointToScreen(new Point(tb.Left + tb.Width / 2, tb.Top + tb.Height / 2)));
+                if (p.X >= 0 && p.Y >= 0 && p.X < bmp.Width && p.Y < bmp.Height) tb.BackColor = bmp.GetPixel(p.X, p.Y);
             }
         }
 
@@ -1196,6 +1336,459 @@ namespace MonitorPing
             {
                 if (h is TrackBar) lista.Add((TrackBar)h);
                 else if (h.HasChildren) BuscarBarras(h, lista);
+            }
+        }
+    }
+
+    // Marco redondeado para los cuadros de texto y las listas: el control va dentro, sin borde propio,
+    // y el marco dibuja la forma redondeada con el borde (del color de acento cuando tiene el foco).
+    // En las listas, la barra de desplazamiento de Windows (blanca y cuadrada) queda escondida fuera del recorte
+    // y el marco dibuja una barra fina y redondeada del color del tema, que también se puede arrastrar
+    class Marco : Panel
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        struct SCROLLINFO { public int cbSize; public uint fMask; public int nMin, nMax; public uint nPage; public int nPos, nTrackPos; }
+        [DllImport("user32.dll")] static extern bool GetScrollInfo(IntPtr hwnd, int barra, ref SCROLLINFO info);
+        [DllImport("user32.dll")] static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr w, IntPtr l);
+
+        const int WM_VSCROLL = 0x115, LVM_SCROLL = 0x1014;
+
+        readonly Control interno;
+        readonly Tema t;
+        readonly bool linea;   // cuadro de texto de una línea: forma de píldora y el texto centrado
+        readonly bool lista;   // ListBox o ListView: barra de desplazamiento propia
+        Panel recorte;         // en las listas: ventana que recorta la barra nativa
+        bool sobre, sobreBarra, arrastrando;
+        int agarre;            // en el arrastre: distancia del ratón al borde superior del pulgar
+        SCROLLINFO ultima;
+
+        Marco(Control c, Tema tema)
+        {
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.ResizeRedraw |
+                     ControlStyles.UserPaint | ControlStyles.SupportsTransparentBackColor, true);
+            BackColor = Color.Transparent;
+            interno = c;
+            t = tema;
+            TextBox tb = c as TextBox;
+            linea = tb != null && !tb.Multiline;
+            lista = c is ListBox || c is ListView;
+        }
+
+        public static void Envolver(Control c, Tema t)
+        {
+            Control padre = c.Parent;
+            if (padre == null || padre is Marco) return;
+            Marco m = new Marco(c, t);
+            Rectangle antes = c.Bounds;
+            m.Margin = c.Margin;
+            m.Anchor = c.Anchor;
+            m.Dock = c.Dock;
+            m.TabIndex = c.TabIndex;
+            if (m.linea) m.Bounds = new Rectangle(antes.X, antes.Y, antes.Width, Math.Max(antes.Height, c.PreferredSize.Height + 14));
+            else if (c is ListView) m.Bounds = new Rectangle(antes.X, antes.Y, antes.Width + 2 * m.Relleno, antes.Height + 2 * m.Relleno); // las columnas siguen cabiendo
+            else m.Bounds = antes;
+            int indice = padre.Controls.GetChildIndex(c);
+            padre.Controls.Add(m);
+            padre.Controls.SetChildIndex(m, indice);
+            c.Margin = Padding.Empty;
+            c.Dock = DockStyle.None;
+            c.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            if (m.lista)
+            {
+                m.recorte = new Panel();
+                m.recorte.BackColor = t.ControlFondo;
+                m.recorte.Margin = Padding.Empty;
+                m.Controls.Add(m.recorte);
+                m.recorte.Controls.Add(c);
+                new Vigia(c, m);
+            }
+            else m.Controls.Add(c);
+            m.Colocar();
+            c.GotFocus += delegate { m.Invalidate(); };
+            c.LostFocus += delegate { m.Invalidate(); };
+            c.MouseEnter += delegate { m.sobre = true; m.Invalidate(); };
+            c.MouseLeave += delegate { m.sobre = false; m.Invalidate(); };
+            c.EnabledChanged += delegate { m.Invalidate(); };
+            if (m.linea) m.Click += delegate { c.Focus(); };
+        }
+
+        public int Relleno { get { return linea ? 12 : Math.Max(5, t.Radio * 2 / 5); } }
+        const int AnchoBarra = 4, HuecoBarra = 8; // pulgar de 4 px en un hueco de 8 a la derecha de la lista
+
+        void Colocar()
+        {
+            int p = Relleno;
+            if (linea) { interno.SetBounds(p, (Height - interno.Height) / 2, Math.Max(10, Width - 2 * p), interno.Height); return; }
+            if (!lista) { interno.SetBounds(p, p, Math.Max(10, Width - 2 * p), Math.Max(10, Height - 2 * p)); return; }
+            int w = Math.Max(10, Width - 2 * p - HuecoBarra), h = Math.Max(10, Height - 2 * p);
+            recorte.SetBounds(p, p, w, h);
+            // la lista es más ancha que el recorte: su barra nativa queda fuera, sin verse
+            interno.SetBounds(0, 0, w + SystemInformation.VerticalScrollBarWidth + 2, h);
+            // En las tablas, la última columna llena solo lo visible (si no, su texto quedaría bajo el recorte)
+            ListView lv = interno as ListView;
+            if (lv != null && lv.Columns.Count > 0)
+            {
+                int resto = w;
+                for (int i = 0; i < lv.Columns.Count - 1; i++) resto -= lv.Columns[i].Width;
+                lv.Columns[lv.Columns.Count - 1].Width = Math.Max(40, resto + 2); // el separador final queda 2 px fuera, escondido, sin barra horizontal
+            }
+        }
+
+        protected override void OnResize(EventArgs e)
+        {
+            base.OnResize(e);
+            if (interno != null && (!lista || recorte != null)) Colocar();
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e) { VentanaTema.FondoDetras(e.Graphics, this); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            RectangleF r = new RectangleF(0.5f, 0.5f, Width - 2f, Height - 2f);
+            float radio = linea ? r.Height / 2f : Math.Max(8, t.Radio);
+            bool foco = interno.ContainsFocus;
+            using (GraphicsPath p = WidgetForm.Redondeado(r, radio))
+            {
+                using (SolidBrush f = new SolidBrush(t.ControlFondo)) g.FillPath(f, p);
+                Color borde = !interno.Enabled ? Color.FromArgb(120, t.ControlBorde) : foco ? t.Acento : sobre ? Estilo.Mezclar(t.ControlBorde, t.Texto, 0.35) : t.ControlBorde;
+                using (Pen pen = new Pen(borde, foco ? 1.6f : 1f)) g.DrawPath(pen, p);
+            }
+            if (lista)
+            {
+                Rectangle pulgar;
+                if (Pulgar(out pulgar))
+                {
+                    Color c = arrastrando ? t.Acento : sobreBarra ? Estilo.Mezclar(t.ControlBorde, t.Texto, 0.6) : Estilo.Mezclar(t.ControlBorde, t.Texto, 0.3);
+                    using (GraphicsPath p = WidgetForm.Redondeado(pulgar, AnchoBarra / 2f))
+                    using (SolidBrush b = new SolidBrush(c)) g.FillPath(b, p);
+                }
+            }
+        }
+
+        // --- barra propia ---
+
+        SCROLLINFO Info()
+        {
+            SCROLLINFO si = new SCROLLINFO();
+            si.cbSize = Marshal.SizeOf(typeof(SCROLLINFO));
+            si.fMask = 0x17; // SIF_ALL
+            if (!interno.IsHandleCreated || !GetScrollInfo(interno.Handle, 1, ref si)) si.nPage = 0;
+            return si;
+        }
+
+        Rectangle Carril()
+        {
+            int p = Relleno;
+            return new Rectangle(Width - p - AnchoBarra - 1, p + 3, AnchoBarra, Math.Max(10, Height - 2 * p - 6));
+        }
+
+        bool Pulgar(out Rectangle pulgar)
+        {
+            pulgar = Rectangle.Empty;
+            SCROLLINFO si = Info();
+            int rango = si.nMax - si.nMin + 1;
+            if (si.nPage == 0 || rango <= (int)si.nPage) return false; // todo cabe: sin barra
+            Rectangle c = Carril();
+            int alto = Math.Max(18, (int)((long)c.Height * si.nPage / rango));
+            int recorrido = rango - (int)si.nPage;
+            int y = c.Top + (int)((long)(c.Height - alto) * (si.nPos - si.nMin) / Math.Max(1, recorrido));
+            pulgar = new Rectangle(c.Left, y, c.Width, alto);
+            return true;
+        }
+
+        // Lo llama el vigía de la lista cuando pudo cambiar el desplazamiento
+        internal void RevisarBarra()
+        {
+            SCROLLINFO si = Info();
+            if (si.nPos == ultima.nPos && si.nMax == ultima.nMax && si.nPage == ultima.nPage && si.nMin == ultima.nMin) return;
+            ultima = si;
+            Rectangle c = Carril();
+            c.Inflate(2, 2);
+            Invalidate(c);
+        }
+
+        bool EnCarril(Point p)
+        {
+            Rectangle c = Carril();
+            c.Inflate(4, 0); // zona de agarre un poco más ancha que la barra
+            return c.Contains(p);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (!lista || e.Button != MouseButtons.Left || !EnCarril(e.Location)) return;
+            Rectangle pulgar;
+            if (!Pulgar(out pulgar)) return;
+            if (e.Y >= pulgar.Top && e.Y < pulgar.Bottom)
+            {
+                arrastrando = true;
+                agarre = e.Y - pulgar.Top;
+                Capture = true;
+                Invalidate();
+            }
+            else SendMessage(interno.Handle, WM_VSCROLL, (IntPtr)(e.Y < pulgar.Top ? 2 : 3), IntPtr.Zero); // página arriba o abajo
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (!lista) return;
+            bool s = EnCarril(e.Location);
+            if (s != sobreBarra) { sobreBarra = s; Invalidate(); }
+            if (!arrastrando) return;
+            Rectangle pulgar;
+            if (!Pulgar(out pulgar)) return;
+            SCROLLINFO si = Info();
+            Rectangle c = Carril();
+            int recorrido = si.nMax - si.nMin + 1 - (int)si.nPage;
+            double frac = (e.Y - agarre - c.Top) / (double)Math.Max(1, c.Height - pulgar.Height);
+            int destino = si.nMin + (int)Math.Round(Math.Max(0, Math.Min(1, frac)) * recorrido);
+            Desplazar(destino, si.nPos);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            if (arrastrando) { arrastrando = false; Capture = false; Invalidate(); }
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            if (sobreBarra) { sobreBarra = false; Invalidate(); }
+        }
+
+        void Desplazar(int destino, int actual)
+        {
+            if (destino == actual) return;
+            ListBox lb = interno as ListBox;
+            if (lb != null) { lb.TopIndex = destino; return; }
+            ListView lv = interno as ListView;
+            if (lv != null && lv.Items.Count > 0)
+            {
+                int alto = lv.GetItemRect(0).Height; // en vista de detalles la barra va por filas
+                SendMessage(lv.Handle, LVM_SCROLL, IntPtr.Zero, (IntPtr)((destino - actual) * alto));
+            }
+            RevisarBarra();
+        }
+
+        // Escucha los mensajes de la lista para redibujar la barra cuando se desplaza o cambia el contenido
+        class Vigia : NativeWindow
+        {
+            readonly Control lista;
+            readonly Marco marco;
+
+            public Vigia(Control c, Marco m)
+            {
+                lista = c;
+                marco = m;
+                if (c.IsHandleCreated) AssignHandle(c.Handle);
+                c.HandleCreated += delegate { AssignHandle(c.Handle); };
+                c.HandleDestroyed += delegate { ReleaseHandle(); };
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                switch (m.Msg)
+                {
+                    case 0x000F: // WM_PAINT
+                    case 0x0115: // WM_VSCROLL
+                    case 0x020A: // WM_MOUSEWHEEL
+                    case 0x0100: // WM_KEYDOWN
+                    case 0x0005: // WM_SIZE
+                        marco.RevisarBarra();
+                        break;
+                }
+            }
+        }
+    }
+
+    // Desplegables redondeados: se pinta encima de la ventana nativa (fondo, borde, texto y flecha);
+    // en los editables se deja libre el cuadro de texto interior
+    class PintorCombo : NativeWindow
+    {
+        [StructLayout(LayoutKind.Sequential)] struct RECT { public int Left, Top, Right, Bottom; }
+        [StructLayout(LayoutKind.Sequential)]
+        struct COMBOBOXINFO { public int cbSize; public RECT rcItem, rcButton; public int stateButton; public IntPtr hwndCombo, hwndItem, hwndList; }
+        [StructLayout(LayoutKind.Sequential)]
+        struct PAINTSTRUCT
+        {
+            public IntPtr hdc; public int fErase; public RECT rcPaint; public int fRestore, fIncUpdate;
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 32)] public byte[] rgbReserved;
+        }
+        [DllImport("user32.dll")] static extern bool GetComboBoxInfo(IntPtr hwnd, ref COMBOBOXINFO info);
+        [DllImport("user32.dll")] static extern IntPtr BeginPaint(IntPtr hwnd, out PAINTSTRUCT ps);
+        [DllImport("user32.dll")] static extern bool EndPaint(IntPtr hwnd, ref PAINTSTRUCT ps);
+
+        [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr hwnd, IntPtr despues, int x, int y, int w, int h, uint flags);
+        [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hwnd, out RECT r);
+
+        const int WM_PAINT = 0x0F, WM_ERASEBKGND = 0x14, WM_SETFOCUS = 0x07, WM_KILLFOCUS = 0x08, WM_ENABLE = 0x0A,
+                  CB_SETCURSEL = 0x14E, WM_MOUSEWHEEL = 0x20A, WM_KEYDOWN = 0x100, WM_SIZE = 0x05, WM_WINDOWPOSCHANGED = 0x47;
+
+        // En los editables, el cuadro de texto interior se separa de los extremos redondeados
+        void MeterEdit()
+        {
+            COMBOBOXINFO info = new COMBOBOXINFO();
+            info.cbSize = Marshal.SizeOf(typeof(COMBOBOXINFO));
+            if (!GetComboBoxInfo(c.Handle, ref info) || info.hwndItem == IntPtr.Zero) return;
+            int h = c.Height, x = h / 2, derecha = c.Width - h - 4;
+            int alto = info.rcItem.Bottom - info.rcItem.Top;
+            if (info.rcItem.Left == x && info.rcItem.Right == derecha) return;
+            if (derecha - x < 20) return;
+            SetWindowPos(info.hwndItem, IntPtr.Zero, x, info.rcItem.Top, derecha - x, alto, 0x0014); // SWP_NOZORDER | SWP_NOACTIVATE
+        }
+
+        readonly ComboBox c;
+        readonly Tema t;
+        bool sobre;
+
+        PintorCombo(ComboBox combo, Tema tema)
+        {
+            c = combo;
+            t = tema;
+            if (c.IsHandleCreated) AssignHandle(c.Handle);
+            c.HandleCreated += delegate { AssignHandle(c.Handle); };
+            c.HandleDestroyed += delegate { ReleaseHandle(); vigiaEdit = null; };
+            c.MouseEnter += delegate { sobre = true; c.Invalidate(); };
+            c.MouseLeave += delegate { sobre = false; c.Invalidate(); };
+            c.SelectedIndexChanged += delegate { c.Invalidate(); SinResaltar(); };
+            c.GotFocus += delegate { SinResaltar(); };
+            c.DropDownClosed += delegate { c.Invalidate(); };
+        }
+
+        // En los editables Windows selecciona todo el texto (recuadro azul): se deja el cursor al final, sin selección
+        void SinResaltar()
+        {
+            if (Lista || !c.IsHandleCreated) return;
+            c.BeginInvoke((MethodInvoker)delegate { if (!c.IsDisposed && c.SelectionLength > 0) { c.SelectionStart = c.Text.Length; c.SelectionLength = 0; } });
+        }
+
+        public static void Aplicar(ComboBox c, Tema t) { new PintorCombo(c, t); } // queda vivo mientras esté unido a la ventana
+
+        bool Lista { get { return c.DropDownStyle == ComboBoxStyle.DropDownList; } }
+
+        protected override void WndProc(ref Message m)
+        {
+            if (Lista && m.Msg == WM_ERASEBKGND) { m.Result = (IntPtr)1; return; }
+            if (Lista && m.Msg == WM_PAINT)
+            {
+                // Se pinta todo aquí, sin la pintura de Windows debajo: así no parpadea
+                PAINTSTRUCT ps;
+                IntPtr hdc = BeginPaint(m.HWnd, out ps);
+                try { using (Graphics g = Graphics.FromHdc(hdc)) Pintar(g); }
+                finally { EndPaint(m.HWnd, ref ps); }
+                m.Result = IntPtr.Zero;
+                return;
+            }
+            base.WndProc(ref m);
+            if (!Lista && (m.Msg == WM_PAINT || m.Msg == WM_SIZE || m.Msg == WM_WINDOWPOSCHANGED)) { MeterEdit(); VigilarEdit(); }
+            if (m.Msg == WM_PAINT && !Lista)
+            {
+                // texto puesto por código: Windows lo deja seleccionado y se ve resaltado aunque no tenga el foco
+                if (!c.Focused && c.SelectionLength > 0) { c.SelectionStart = c.Text.Length; c.SelectionLength = 0; }
+                using (Graphics g = Graphics.FromHwnd(m.HWnd)) Pintar(g);
+            }
+            else if (m.Msg == WM_SETFOCUS || m.Msg == WM_KILLFOCUS || m.Msg == WM_ENABLE || m.Msg == CB_SETCURSEL ||
+                     m.Msg == WM_MOUSEWHEEL || m.Msg == WM_KEYDOWN)
+                c.Invalidate();
+            if (Raton(m.Msg)) Repintar();
+        }
+
+        // Al pasar el ratón, Windows dibuja su marco cuadrado directamente, fuera del pintado normal:
+        // justo después se vuelve a pintar el redondeado encima
+        internal static bool Raton(int msg)
+        {
+            return msg == 0x0200 || msg == 0x02A1 || msg == 0x02A3 || msg == 0x0020 || msg == 0x0201 || msg == 0x0202 ||
+                   msg == 0x0111 || msg == 0x0133 || msg == 0x0007 || msg == 0x0008;
+        }
+
+        bool pendiente;
+
+        internal void Repintar()
+        {
+            if (pendiente || !c.IsHandleCreated) return;
+            pendiente = true;
+            c.BeginInvoke((MethodInvoker)delegate
+            {
+                pendiente = false;
+                if (c.IsDisposed || !c.IsHandleCreated) return;
+                using (Graphics g = Graphics.FromHwnd(c.Handle)) Pintar(g);
+            });
+        }
+
+        // El cuadro de texto interior de los editables: sus mensajes de ratón también hacen que Windows pinte el marco
+        class VigiaEdit : NativeWindow
+        {
+            readonly PintorCombo p;
+            public VigiaEdit(IntPtr edit, PintorCombo pintor) { p = pintor; AssignHandle(edit); }
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                if (Raton(m.Msg) || m.Msg == 0x000F) p.Repintar();
+                if (m.Msg == 0x0082) ReleaseHandle(); // WM_NCDESTROY
+            }
+        }
+
+        VigiaEdit vigiaEdit;
+
+        void VigilarEdit()
+        {
+            if (Lista || vigiaEdit != null) return;
+            COMBOBOXINFO info = new COMBOBOXINFO();
+            info.cbSize = Marshal.SizeOf(typeof(COMBOBOXINFO));
+            if (GetComboBoxInfo(c.Handle, ref info) && info.hwndItem != IntPtr.Zero) vigiaEdit = new VigiaEdit(info.hwndItem, this);
+        }
+
+        void Pintar(Graphics destino)
+        {
+            int w = c.Width, h = c.Height;
+            if (w < 4 || h < 4) return;
+            COMBOBOXINFO info = new COMBOBOXINFO();
+            info.cbSize = Marshal.SizeOf(typeof(COMBOBOXINFO));
+            bool hayInfo = GetComboBoxInfo(c.Handle, ref info);
+            using (Bitmap bmp = new Bitmap(w, h))
+            {
+                using (Graphics g = Graphics.FromImage(bmp))
+                {
+                    VentanaTema.FondoDetras(g, c);
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    RectangleF r = new RectangleF(0.5f, 0.5f, w - 2f, h - 2f);
+                    bool foco = c.Focused || c.DroppedDown;
+                    using (GraphicsPath p = WidgetForm.Redondeado(r, r.Height / 2f))
+                    {
+                        using (SolidBrush f = new SolidBrush(t.ControlFondo)) g.FillPath(f, p);
+                        Color borde = !c.Enabled ? Color.FromArgb(120, t.ControlBorde) : foco ? t.Acento : sobre ? Estilo.Mezclar(t.ControlBorde, t.Texto, 0.35) : t.ControlBorde;
+                        using (Pen pen = new Pen(borde, foco ? 1.6f : 1f)) g.DrawPath(pen, p);
+                    }
+                    // Flecha en forma de V
+                    float cx = w - h / 2f - 4, cy = h / 2f;
+                    using (Pen flecha = new Pen(c.Enabled ? t.TextoTenue : Color.FromArgb(110, t.TextoTenue), 1.6f))
+                    {
+                        flecha.StartCap = flecha.EndCap = LineCap.Round;
+                        g.DrawLines(flecha, new PointF[] { new PointF(cx - 4, cy - 2), new PointF(cx, cy + 2), new PointF(cx + 4, cy - 2) });
+                    }
+                    if (Lista)
+                    {
+                        g.SmoothingMode = SmoothingMode.None;
+                        Rectangle rt = new Rectangle(h / 2, 0, Math.Max(10, w - h / 2 - h - 4), h);
+                        TextRenderer.DrawText(g, c.Text, c.Font, rt, c.Enabled ? t.Texto : t.TextoTenue,
+                            TextFormatFlags.VerticalCenter | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    }
+                }
+                if (!Lista && hayInfo && info.hwndItem != IntPtr.Zero)
+                {
+                    // la posición real del cuadro de texto (MeterEdit lo movió; rcItem sigue con la original)
+                    RECT rv;
+                    GetWindowRect(info.hwndItem, out rv);
+                    Rectangle edit = c.RectangleToClient(Rectangle.FromLTRB(rv.Left, rv.Top, rv.Right, rv.Bottom));
+                    destino.SetClip(edit, CombineMode.Exclude);
+                }
+                destino.DrawImageUnscaled(bmp, 0, 0);
             }
         }
     }
@@ -1963,6 +2556,7 @@ namespace MonitorPing
         ConfigForm formAbierto;
         PruebaRatonForm pruebaAbierta;
         PruebaPerdidaForm pruebaPerdida;
+        PruebaVelocidadForm pruebaVelocidad;
         RutaEnVivo ruta = new RutaEnVivo();
         RutaForm rutaForm;
         int cortesPrevios;
@@ -1975,6 +2569,7 @@ namespace MonitorPing
         {
             cfg = Config.Cargar();
             Tema.Actual = Tema.Buscar(cfg.NombreTema);
+            if (Tema.Actual.Oscuro && Tema.Actual.Ventanas) Estilo.PrepararModoOscuro();
             MigrarInicio();
             inicioWindows = InicioConWindows();
 
@@ -2014,6 +2609,7 @@ namespace MonitorPing
             menu.Items.Add(itemInicio);
             menu.Items.Add("Configuración...", null, delegate { AbrirConfig(); });
             menu.Items.Add("Prueba de pérdida de paquetes...", null, delegate { AbrirPruebaPerdida(); });
+            menu.Items.Add("Prueba de velocidad (sin Speedtest)...", null, delegate { AbrirPruebaVelocidad(); });
             menu.Items.Add("Ruta en vivo (dónde se pierde)...", null, delegate { AbrirRuta(); });
             menu.Items.Add("Probar ratón...", null, delegate { AbrirPruebaRaton(); });
             menu.Items.Add(new ToolStripSeparator());
@@ -2040,7 +2636,14 @@ namespace MonitorPing
             EstiloMenu();
             widget.ContextMenuStrip = menu;
             widget.CerrarPulsado += delegate { widget.Hide(); };
-            widget.Movido += delegate { cfg.WidgetX = widget.Left; cfg.WidgetY = widget.Top; cfg.Guardar(); };
+            widget.Movido += delegate
+            {
+                cfg.WidgetX = widget.Left;
+                cfg.WidgetY = widget.Top;
+                cfg.AnclaAbajo = widget.AnclaAbajo ? 1 : 0;
+                cfg.AnclaDerecha = widget.AnclaDerecha ? 1 : 0;
+                cfg.Guardar();
+            };
 
             // Cuando se abre una ventana del sistema (iconos ocultos, menús, Inicio...) el widget se pone debajo al instante
             alCambiarVentana = AlCambiarVentana;
@@ -2456,6 +3059,19 @@ namespace MonitorPing
             pruebaPerdida.Show();
         }
 
+        void AbrirPruebaVelocidad()
+        {
+            if (pruebaVelocidad != null)
+            {
+                if (pruebaVelocidad.WindowState == FormWindowState.Minimized) pruebaVelocidad.WindowState = FormWindowState.Normal;
+                pruebaVelocidad.Activate();
+                return;
+            }
+            pruebaVelocidad = new PruebaVelocidadForm(vpn);
+            pruebaVelocidad.FormClosed += delegate { pruebaVelocidad.Dispose(); pruebaVelocidad = null; };
+            pruebaVelocidad.Show();
+        }
+
         void AbrirRuta()
         {
             if (rutaForm != null)
@@ -2692,6 +3308,22 @@ namespace MonitorPing
         {
             widget.Location = new Point(cfg.WidgetX, cfg.WidgetY);
             MantenerEnPantalla();
+            if (cfg.AnclaAbajo < 0 || cfg.AnclaDerecha < 0)
+            {
+                // primera vez con el imán: si ya estaba cerca de la barra o del borde, se pega
+                widget.Imantar();
+                cfg.AnclaAbajo = widget.AnclaAbajo ? 1 : 0;
+                cfg.AnclaDerecha = widget.AnclaDerecha ? 1 : 0;
+                cfg.WidgetX = widget.Left;
+                cfg.WidgetY = widget.Top;
+                cfg.Guardar();
+            }
+            else
+            {
+                widget.AnclaAbajo = cfg.AnclaAbajo == 1;
+                widget.AnclaDerecha = cfg.AnclaDerecha == 1;
+                widget.AplicarAnclas();
+            }
         }
 
         // Si el widget quedó fuera de las pantallas (o crece al cambiar de modo), vuelve a la esquina inferior derecha
@@ -2798,6 +3430,7 @@ namespace MonitorPing
         {
             timer.Stop();
             if (pruebaPerdida != null) pruebaPerdida.Close();
+            if (pruebaVelocidad != null) pruebaVelocidad.Close();
             if (rutaForm != null) rutaForm.Close();
             ruta.Parar();
             Native.UnhookWinEvent(ganchoMostrar);
@@ -2823,7 +3456,7 @@ namespace MonitorPing
         // Medidas a 96 ppp; al pintar se escalan según el DPI de la pantalla
         const int AnchoNormal = 384, AltoCabecera = 24, AltoFila = 50, AltoPie = 28;
         const int XPing = 165, XGrafica = 256;
-        const int AnchoCompacto = 300, AltoFilaCompacta = 20, MargenCompacto = 5;
+        const int AnchoCompacto = 300, AnchoCompactoMin = 236, AltoFilaCompacta = 20, MargenCompacto = 5; // compacto: se ajusta al texto entre el mínimo y 300
 
         float k = 1f;
         // Fondo animado de los temas nuevos: los resplandores se desplazan despacio
@@ -2847,6 +3480,33 @@ namespace MonitorPing
         StringFormat recorte, derecha;
 
         public event EventHandler CerrarPulsado, Movido;
+        public bool AnclaAbajo, AnclaDerecha; // pegado a la barra de tareas / al borde derecho: se mantiene al cambiar de tamaño
+
+        const int UmbralIman = 48, MargenIman = 8; // en píxeles lógicos
+
+        // Al soltar el widget: si quedó cerca de un borde de la pantalla (la barra de tareas incluida), se pega a él
+        public void Imantar()
+        {
+            Rectangle wa = Screen.FromRectangle(Bounds).WorkingArea;
+            int u = S(UmbralIman), m = S(MargenIman);
+            AnclaAbajo = Math.Abs(Bottom - (wa.Bottom - m)) <= u;
+            AnclaDerecha = Math.Abs(Right - (wa.Right - m)) <= u;
+            int x = Left, y = Top;
+            if (AnclaDerecha) x = wa.Right - m - Width;
+            else if (Math.Abs(Left - (wa.Left + m)) <= u) x = wa.Left + m;
+            if (AnclaAbajo) y = wa.Bottom - m - Height;
+            else if (Math.Abs(Top - (wa.Top + m)) <= u) y = wa.Top + m;
+            Location = new Point(x, y);
+        }
+
+        // Mantiene el widget pegado a los bordes a los que se ancló (al cambiar de alto, de ancho o la barra de tareas)
+        public void AplicarAnclas()
+        {
+            if (!AnclaAbajo && !AnclaDerecha) return;
+            Rectangle wa = Screen.FromRectangle(Bounds).WorkingArea;
+            int m = S(MargenIman);
+            Location = new Point(AnclaDerecha ? wa.Right - m - Width : Left, AnclaAbajo ? wa.Bottom - m - Height : Top);
+        }
 
         public WidgetForm()
         {
@@ -2892,9 +3552,10 @@ namespace MonitorPing
         public void Configurar(bool esCompacto, int numFilas, int opacidad, bool esBloqueado)
         {
             compacto = esCompacto;
-            ancho = compacto ? AnchoCompacto : AnchoNormal;
+            ancho = compacto ? AnchoCompactoNecesario() : AnchoNormal;
             alto = compacto ? MargenCompacto * 2 + (numFilas + 1) * AltoFilaCompacta : AltoCabecera + numFilas * AltoFila + AltoPie;
             ClientSize = new Size(S(ancho), S(alto));
+            AplicarAnclas();
             AjustarRegion();
             // Nunca 1.0: así la ventana sigue siendo "layered" y el modo monitor (clic a través) funciona también al 100 %
             Opacity = Math.Min(0.99, Math.Max(30, Math.Min(100, opacidad)) / 100.0);
@@ -2914,6 +3575,7 @@ namespace MonitorPing
             Tema t = Tema.Actual;
             BackColor = t.Fondo;
             CrearFuentes(t);
+            if (compacto) { int n = AnchoCompactoNecesario(); if (n != ancho) CambiarAncho(n); }
             AjustarRegion();
             animado = animar && t.Moderno;
             if (!animado) fase = 1.2;
@@ -2965,8 +3627,46 @@ namespace MonitorPing
             filas = nuevas;
             diagnostico = diag;
             colorDiagnostico = color;
+            AjustarAnchoCompacto();
             capaSucia = true;
             if (Visible) Invalidate();
+        }
+
+        // Ancho del modo compacto según el texto más largo de la columna derecha y del diagnóstico,
+        // redondeado de 8 en 8 para que no cambie con cada número
+        int AnchoCompactoNecesario()
+        {
+            if (fDetalleC == null || fDiagC == null) return AnchoCompacto;
+            float max = 0;
+            using (Bitmap bmp = new Bitmap(1, 1))
+            using (Graphics g = Graphics.FromImage(bmp))
+            {
+                foreach (Fila f in filas)
+                    if (!string.IsNullOrEmpty(f.Corto2)) max = Math.Max(max, 198 + g.MeasureString(f.Corto2, fDetalleC).Width + 6);
+                if (!string.IsNullOrEmpty(diagnostico)) max = Math.Max(max, 20 + g.MeasureString(diagnostico, fDiagC).Width + 10);
+            }
+            int w = ((int)Math.Ceiling(max) + 7) / 8 * 8;
+            return Math.Max(AnchoCompactoMin, Math.Min(AnchoCompacto, w));
+        }
+
+        // Crece en cuanto hace falta; se encoge solo si sobran 16 o más, para que no esté cambiando de tamaño a cada rato
+        void AjustarAnchoCompacto()
+        {
+            if (!compacto) return;
+            int n = AnchoCompactoNecesario();
+            if (n <= ancho && n > ancho - 16) return;
+            CambiarAncho(n);
+            AjustarRegion();
+        }
+
+        // Si el widget estaba pegado al borde derecho de la pantalla, sigue pegado; y nunca se sale por la derecha
+        void CambiarAncho(int n)
+        {
+            Rectangle wa = Screen.FromControl(this).WorkingArea;
+            ancho = n;
+            ClientSize = new Size(S(ancho), S(alto));
+            AplicarAnclas();
+            if (Right > wa.Right) Left = Math.Max(wa.Left, wa.Right - Width);
         }
 
         bool EnCerrar(Point p) { return !compacto && Escalar(rCerrar).Contains(p); }
@@ -2978,6 +3678,7 @@ namespace MonitorPing
             // Arrastrar la ventana como si se agarrara la barra de título; vuelve al soltar el ratón
             Native.ReleaseCapture();
             Native.SendMessage(Handle, Native.WM_NCLBUTTONDOWN, new IntPtr(Native.HTCAPTION), IntPtr.Zero);
+            Imantar(); // cerca de la barra de tareas o de un borde: se pega; en otro sitio: se suelta
             if (Movido != null) Movido(this, EventArgs.Empty);
         }
 
@@ -3127,13 +3828,13 @@ namespace MonitorPing
                 using (SolidBrush b = new SolidBrush(f.Detalle1Malo ? Calidad.Rojo : t.TextoTenue))
                     g.DrawString(f.Corto1, fDetalleC, b, new RectangleF(138, y + 3, 60, 16), recorte);
                 using (SolidBrush b = new SolidBrush(t.TextoTenue))
-                    g.DrawString(f.Corto2, fDetalleC, b, new RectangleF(198, y + 3, AnchoCompacto - 202, 16), recorte);
+                    g.DrawString(f.Corto2, fDetalleC, b, new RectangleF(198, y + 3, ancho - 202, 16), recorte);
                 y += AltoFilaCompacta;
             }
-            if (t.Moderno) Cristal(g, new RectangleF(4, y + 1, AnchoCompacto - 8, AltoFilaCompacta - 2), 9, t);
+            if (t.Moderno) Cristal(g, new RectangleF(4, y + 1, ancho - 8, AltoFilaCompacta - 2), 9, t);
             using (SolidBrush b = new SolidBrush(colorDiagnostico)) g.FillEllipse(b, 8, y + 6, 8, 8);
             using (SolidBrush b = new SolidBrush(t.Texto))
-                g.DrawString(diagnostico, fDiagC, b, new RectangleF(20, y + 2, AnchoCompacto - 26, 17), recorte);
+                g.DrawString(diagnostico, fDiagC, b, new RectangleF(20, y + 2, ancho - 26, 17), recorte);
         }
 
         void PintarNormal(Graphics g, Tema t)
@@ -3570,14 +4271,230 @@ namespace MonitorPing
         }
     }
 
+    // Salida por la conexión física (Wi-Fi o cable) aunque haya una VPN: las pruebas se atan a su IP local.
+    // Es una copia de la de RutaEnVivo para no tocar la ruta en vivo.
+    static class Red
+    {
+        static readonly string[] MarcasVpn = { "wintun", "tap-", "wireguard", "vpn", "hotspot", "openvpn", "nordlynx", "warp",
+            "zerotier", "tailscale", "tunnel", "virtual", "hyper-v", "vmware", "virtualbox", "loopback" };
+
+        // IP local del cable (o, si no hay, del Wi-Fi) con puerta de enlace; null si no hay ninguna
+        public static IPAddress SalidaFisica()
+        {
+            IPAddress wifi = null;
+            foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (ni.OperationalStatus != OperationalStatus.Up) continue;
+                bool cable = ni.NetworkInterfaceType == NetworkInterfaceType.Ethernet || ni.NetworkInterfaceType == NetworkInterfaceType.GigabitEthernet;
+                bool esWifi = ni.NetworkInterfaceType == NetworkInterfaceType.Wireless80211;
+                if (!cable && !esWifi) continue;
+                string t = (ni.Name + " " + ni.Description).ToLowerInvariant();
+                bool esVpn = false;
+                foreach (string m in MarcasVpn) if (t.Contains(m)) { esVpn = true; break; }
+                if (esVpn) continue;
+                IPInterfaceProperties p = ni.GetIPProperties();
+                bool conGw = false;
+                foreach (GatewayIPAddressInformation x in p.GatewayAddresses)
+                    if (x.Address.AddressFamily == AddressFamily.InterNetwork && !x.Address.Equals(IPAddress.Any)) { conGw = true; break; }
+                if (!conGw) continue;
+                IPAddress l = null;
+                foreach (UnicastIPAddressInformation u in p.UnicastAddresses)
+                    if (u.Address.AddressFamily == AddressFamily.InterNetwork) { l = u.Address; break; }
+                if (l == null) continue;
+                if (cable) return l;
+                if (wifi == null) wifi = l;
+            }
+            return wifi;
+        }
+
+        // Ping TCP (SYN-ACK o RST cuentan como respuesta) desde una IP local elegida (null = la ruta normal)
+        public static int PingTcp(IPAddress ip, int puerto, IPAddress origen, int timeout)
+        {
+            using (Socket s = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp))
+            {
+                try
+                {
+                    try { s.IOControl(Sonda.SIO_TCP_INITIAL_RTO, Sonda.SinReintentosSyn, null); } catch { }
+                    if (origen != null) s.Bind(new IPEndPoint(origen, 0));
+                    Stopwatch reloj = Stopwatch.StartNew();
+                    IAsyncResult ar = s.BeginConnect(ip, puerto, null, null);
+                    if (!ar.AsyncWaitHandle.WaitOne(timeout)) return -1;
+                    try { s.EndConnect(ar); }
+                    catch (SocketException ex) { if (ex.SocketErrorCode != SocketError.ConnectionRefused) return -1; }
+                    return (int)reloj.ElapsedMilliseconds;
+                }
+                catch { return -1; }
+            }
+        }
+    }
+
+    // Eco ICMP asíncrono desde una IP local elegida (así sale por el Wi-Fi aunque la VPN capture el resto del tráfico)
+    static class IcmpDesde
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        struct Opciones { public byte Ttl, Tos, Flags, Tamano; public IntPtr Datos; }
+        [StructLayout(LayoutKind.Sequential)]
+        struct Respuesta { public uint Direccion, Estado, Rtt; public ushort Tamano, Reservado; public IntPtr Datos; public Opciones Opc; }
+
+        [DllImport("iphlpapi.dll", SetLastError = true)] static extern IntPtr IcmpCreateFile();
+        [DllImport("iphlpapi.dll")] static extern bool IcmpCloseHandle(IntPtr h);
+        [DllImport("iphlpapi.dll", SetLastError = true)]
+        static extern uint IcmpSendEcho2Ex(IntPtr h, IntPtr evento, IntPtr apc, IntPtr ctx, uint origen, uint destino,
+            byte[] datos, ushort tamano, ref Opciones opc, IntPtr respuesta, uint tamRespuesta, uint timeout);
+        [DllImport("iphlpapi.dll")] static extern uint IcmpParseReplies(IntPtr respuesta, uint tamRespuesta);
+
+        static uint Ip(IPAddress a) { return BitConverter.ToUInt32(a.GetAddressBytes(), 0); }
+
+        // Eco con TTL limitado, esperando aquí mismo: devuelve quién contestó (el router de ese salto o el destino) o null
+        static string Salto(IPAddress origen, IPAddress destino, int ttl, int timeout)
+        {
+            IntPtr h = IcmpCreateFile();
+            byte[] datos = new byte[32];
+            int tam = 256;
+            IntPtr buf = Marshal.AllocHGlobal(tam);
+            try
+            {
+                Opciones opc = new Opciones();
+                opc.Ttl = (byte)ttl;
+                uint n = IcmpSendEcho2Ex(h, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, Ip(origen), Ip(destino), datos, (ushort)datos.Length, ref opc, buf, (uint)tam, (uint)timeout);
+                if (n == 0) return null;
+                Respuesta r = (Respuesta)Marshal.PtrToStructure(buf, typeof(Respuesta));
+                if (r.Estado != 0 && r.Estado != 11013) return null; // 11013 = TTL agotado: contestó el router de ese salto
+                return new IPAddress(r.Direccion).ToString();
+            }
+            catch { return null; }
+            finally { Marshal.FreeHGlobal(buf); IcmpCloseHandle(h); }
+        }
+
+        static bool Privada(string ip)
+        {
+            byte[] b = IPAddress.Parse(ip).GetAddressBytes();
+            return b[0] == 10 || (b[0] == 172 && b[1] >= 16 && b[1] < 32) || (b[0] == 192 && b[1] == 168) || (b[0] == 100 && b[1] >= 64 && b[1] < 128);
+        }
+
+        // Camino hacia 8.8.8.8: el último salto con IP privada (dentro de tu proveedor) y el primero con IP pública
+        // (donde sale a internet), con el nombre de la red de ese primero
+        public static void Salida(IPAddress origen, out string interno, out string externo, out string nombre)
+        {
+            interno = externo = null;
+            nombre = "";
+            IPAddress destino = IPAddress.Parse("8.8.8.8");
+            string[] saltos = new string[16];
+            Thread[] hilos = new Thread[16];
+            for (int ttl = 2; ttl < 16; ttl++)
+            {
+                int n = ttl;
+                hilos[n] = new Thread(delegate () { saltos[n] = Salto(origen, destino, n, 1500); });
+                hilos[n].IsBackground = true;
+                hilos[n].Start();
+            }
+            for (int ttl = 2; ttl < 16; ttl++) hilos[ttl].Join(3000);
+            string ultimoPrivado = null;
+            for (int ttl = 2; ttl < 16; ttl++)
+            {
+                string ip = saltos[ttl];
+                if (ip == null) continue;
+                if (ip == "8.8.8.8") break;
+                if (Privada(ip)) { ultimoPrivado = ip; continue; }
+                externo = ip;
+                break;
+            }
+            if (externo == null) return; // no se distingue dónde sale del proveedor: no se añade nada
+            interno = ultimoPrivado;
+            nombre = NombreRed(externo);
+        }
+
+        [DllImport("dnsapi.dll", CharSet = CharSet.Unicode, EntryPoint = "DnsQuery_W")]
+        static extern int DnsQuery(string nombre, ushort tipo, uint opciones, IntPtr extra, out IntPtr resultados, IntPtr reservado);
+        [DllImport("dnsapi.dll")] static extern void DnsRecordListFree(IntPtr lista, int tipo);
+
+        static string Txt(string nombre)
+        {
+            IntPtr res;
+            if (DnsQuery(nombre, 16, 0, IntPtr.Zero, out res, IntPtr.Zero) != 0 || res == IntPtr.Zero) return null;
+            try
+            {
+                int datos = IntPtr.Size * 2 + 16;
+                for (IntPtr r = res; r != IntPtr.Zero; r = Marshal.ReadIntPtr(r))
+                {
+                    if (Marshal.ReadInt16(r, IntPtr.Size * 2) != 16 || Marshal.ReadInt32(r, datos) < 1) continue;
+                    return Marshal.PtrToStringUni(Marshal.ReadIntPtr(r, datos + IntPtr.Size));
+                }
+            }
+            finally { DnsRecordListFree(res, 1); }
+            return null;
+        }
+
+        // Nombre corto de la red dueña de una IP (Team Cymru), p. ej. "Globenet"; vacío si no se sabe
+        static string NombreRed(string ip)
+        {
+            try
+            {
+                byte[] b = IPAddress.Parse(ip).GetAddressBytes();
+                string o = Txt(b[3] + "." + b[2] + "." + b[1] + "." + b[0] + ".origin.asn.cymru.com");
+                if (o == null) return "";
+                string asn = o.Split('|')[0].Trim().Split(' ')[0];
+                string d = Txt("AS" + asn + ".asn.cymru.com");
+                if (d == null) return "AS" + asn;
+                string[] partes = d.Split('|');
+                string n = partes[partes.Length - 1].Trim();
+                int guion = n.IndexOf(" - ");
+                if (guion >= 0) n = n.Substring(guion + 3);
+                int coma = n.IndexOf(',');
+                if (coma > 0) n = n.Substring(0, coma);
+                string p = n.Trim().Split(' ')[0]; // "GLOBENET CABOS SUBMARINOS" -> "Globenet"
+                return p.Length > 1 ? char.ToUpper(p[0]) + p.Substring(1).ToLower() : p;
+            }
+            catch { return ""; }
+        }
+
+        // Llama a fin con los ms de la respuesta o -1 si se perdió
+        public static void Enviar(IPAddress origen, IPAddress destino, byte[] datos, int timeout, Action<int> fin)
+        {
+            IntPtr h = IcmpCreateFile();
+            int tam = datos.Length + 256;
+            IntPtr buf = Marshal.AllocHGlobal(tam);
+            ManualResetEvent ev = new ManualResetEvent(false);
+            Opciones opc = new Opciones();
+            opc.Ttl = 128;
+            uint r = IcmpSendEcho2Ex(h, ev.SafeWaitHandle.DangerousGetHandle(), IntPtr.Zero, IntPtr.Zero, Ip(origen), Ip(destino),
+                datos, (ushort)datos.Length, ref opc, buf, (uint)tam, (uint)timeout);
+            if (r == 0 && Marshal.GetLastWin32Error() != 997) // 997 = en curso
+            {
+                Marshal.FreeHGlobal(buf);
+                ev.Close();
+                IcmpCloseHandle(h);
+                fin(-1);
+                return;
+            }
+            ThreadPool.RegisterWaitForSingleObject(ev, delegate(object estado, bool vencido)
+            {
+                int ms = -1;
+                if (!vencido)
+                {
+                    if (IcmpParseReplies(buf, (uint)tam) > 0)
+                    {
+                        Respuesta resp = (Respuesta)Marshal.PtrToStructure(buf, typeof(Respuesta));
+                        if (resp.Estado == 0) ms = (int)resp.Rtt;
+                    }
+                    Marshal.FreeHGlobal(buf); // si venció, Windows aún podría escribir en el buffer: no se libera
+                }
+                ev.Close();
+                IcmpCloseHandle(h);
+                fin(ms);
+            }, null, timeout + 500, true);
+        }
+    }
+
     // Prueba de pérdida de paquetes: manda paquetes a varios servidores a la vez durante un tiempo y cuenta cuántos se pierden.
     // Cada paquete se envía sin esperar la respuesta del anterior, así una pérdida no frena el ritmo.
     class PruebaPerdida
     {
         public class Destino
         {
-            public string Nombre, Host;
-            public bool Tcp;              // servidores de juego: no responden al ping, se mide la conexión TCP al 443
+            public string Nombre, Host, Region; // Region: "local", "ve" (Venezuela) o "int" (fuera del país)
+            public bool Tcp;              // no responden al ping: se mide la conexión TCP (al 443 salvo que se diga otro puerto)
+            public int Puerto = 443;
             public int IntervaloMs, Total;
             public string Error;
             public int[] Resultados;      // ms por paquete; -1 = perdido; -2 = todavía sin respuesta
@@ -3593,6 +4510,7 @@ namespace MonitorPing
         public const int MaxTcpPorSegundo = 2; // para no saturar de conexiones a los servidores de juego
         public readonly List<Destino> Destinos = new List<Destino>();
         public int Tamano = 32;
+        public IPAddress Origen; // IP local del Wi-Fi o cable para saltarse la VPN; null = ruta normal
         volatile bool cancelado;
         int activos;
 
@@ -3600,10 +4518,17 @@ namespace MonitorPing
 
         public void Agregar(string nombre, string host, bool tcp, int porSegundo, int segundos)
         {
+            Agregar(nombre, host, tcp, 443, "int", porSegundo, segundos);
+        }
+
+        public void Agregar(string nombre, string host, bool tcp, int puerto, string region, int porSegundo, int segundos)
+        {
             Destino d = new Destino();
             d.Nombre = nombre;
             d.Host = host;
             d.Tcp = tcp;
+            d.Puerto = puerto;
+            d.Region = region;
             int ps = tcp ? Math.Min(porSegundo, MaxTcpPorSegundo) : porSegundo;
             d.IntervaloMs = 1000 / ps;
             d.Total = ps * segundos;
@@ -3643,7 +4568,8 @@ namespace MonitorPing
                 if (cancelado) break;
                 int n = i;
                 Action<int> guardar = delegate(int ms) { d.Resultados[n] = ms; };
-                if (d.Tcp) TcpAsincrono(ip, 443, guardar);
+                if (d.Tcp) TcpAsincrono(ip, d.Puerto, Origen, guardar);
+                else if (Origen != null) IcmpDesde.Enviar(Origen, ip, datos, 1000, guardar);
                 else IcmpAsincrono(ip, datos, guardar);
                 d.Enviados = i + 1;
             }
@@ -3667,7 +4593,7 @@ namespace MonitorPing
         }
 
         // Como Sonda.PingTcp (SYN-ACK o RST cuentan como respuesta), pero sin bloquear el hilo
-        static void TcpAsincrono(IPAddress ip, int puerto, Action<int> fin)
+        static void TcpAsincrono(IPAddress ip, int puerto, IPAddress origen, Action<int> fin)
         {
             Socket s = new Socket(ip.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
             Stopwatch reloj = Stopwatch.StartNew();
@@ -3682,6 +4608,7 @@ namespace MonitorPing
             try
             {
                 try { s.IOControl(Sonda.SIO_TCP_INITIAL_RTO, Sonda.SinReintentosSyn, null); } catch { }
+                if (origen != null) s.Bind(new IPEndPoint(origen, 0));
                 s.BeginConnect(ip, puerto, delegate(IAsyncResult ar)
                 {
                     int ms = -1;
@@ -3728,14 +4655,15 @@ namespace MonitorPing
             return e;
         }
 
-        static bool EsRouter(Destino d) { return d.Nombre.StartsWith("Router"); }
+        static bool EsRouter(Destino d) { return d.Region == "local" || d.Nombre.StartsWith("Router"); }
 
         // Si pierden todos, es tu conexión; si pierde solo alguno, es esa ruta o ese servidor
         public string Conclusion(out Color color)
         {
             List<string> conPerdida = new List<string>(), sinRespuesta = new List<string>();
             int internet = 0, internetConPerdida = 0;
-            double minPerdida = double.MaxValue, maxPerdida = 0;
+            int nacional = 0, nacionalConPerdida = 0, fuera = 0, fueraConPerdida = 0;
+            double minPerdida = double.MaxValue, maxPerdida = 0, minFuera = double.MaxValue, maxFuera = 0;
             Estadistica router = null;
             foreach (Destino d in Destinos)
             {
@@ -3748,6 +4676,14 @@ namespace MonitorPing
                 minPerdida = Math.Min(minPerdida, e.Perdida);
                 maxPerdida = Math.Max(maxPerdida, e.Perdida);
                 if (pierde) { internetConPerdida++; conPerdida.Add(d.Nombre + " (" + Calidad.Porcentaje(e.Perdida) + ")"); }
+                if (d.Region == "ve") { nacional++; if (pierde) nacionalConPerdida++; }
+                else
+                {
+                    fuera++;
+                    if (pierde) fueraConPerdida++;
+                    minFuera = Math.Min(minFuera, e.Perdida);
+                    maxFuera = Math.Max(maxFuera, e.Perdida);
+                }
             }
             string extra = sinRespuesta.Count > 0 ? " No respondieron (pueden bloquear el ping): " + string.Join(", ", sinRespuesta.ToArray()) + "." : "";
             Tema t = Tema.Actual;
@@ -3760,6 +4696,20 @@ namespace MonitorPing
             {
                 color = t.TenueVentana;
                 return "No hay datos suficientes para sacar una conclusión." + extra;
+            }
+            // Dentro del país limpio y fuera todo con pérdida: el cuello de botella es la salida internacional del proveedor
+            if (nacional >= 1 && nacionalConPerdida == 0 && fuera >= 2 && fueraConPerdida == fuera)
+            {
+                color = t.TextoMal;
+                return "Dentro de Venezuela no se pierde nada, pero todos los servidores de fuera pierden paquetes (" +
+                       Calidad.Porcentaje(minFuera) + " a " + Calidad.Porcentaje(maxFuera) +
+                       "): tu conexión está bien; el problema es la salida internacional de tu proveedor." + extra;
+            }
+            if (nacional >= 1 && nacionalConPerdida == 0 && fueraConPerdida > 0)
+            {
+                color = t.TextoAviso;
+                return "Dentro de Venezuela no se pierde nada; fuera pierden: " + string.Join(", ", conPerdida.ToArray()) +
+                       ". Tu conexión está bien; el problema es la ruta internacional hasta esos servidores." + extra;
             }
             if (internetConPerdida == internet && internet >= 2)
             {
@@ -3782,10 +4732,39 @@ namespace MonitorPing
     {
         class Opcion
         {
-            public string Nombre, Host;
+            public string Nombre, Host, Region = "int";
             public bool Tcp;
+            public int Puerto = 443;
             public override string ToString() { return Nombre + (Tcp ? "   (TCP)" : ""); }
         }
+
+        // Servidores de Venezuela que responden desde fuera de su red (comprobado en noviembre de 2026).
+        // Los que no responden al ping se miden por TCP.
+        static readonly string[][] Venezuela = {
+            new string[] { "Venezuela · Net Uno (servidor de Speedtest)", "speed-ookla.net-uno.net", "ping" },
+            new string[] { "Venezuela · CANTV (web)", "www.cantv.com.ve", "ping" },
+            new string[] { "Venezuela · CANTV (DNS 200.11.248.12)", "200.11.248.12", "ping" },
+            new string[] { "Venezuela · CANTV (DNS 200.44.32.12)", "200.44.32.12", "ping" },
+            new string[] { "Venezuela · CANTV (DNS 2, 201.248.77.6)", "201.248.77.6", "ping" },
+            new string[] { "Venezuela · Inter (web)", "www.inter.com.ve", "443" },
+            new string[] { "Venezuela · Movilnet", "www.movilnet.com.ve", "ping" },
+            new string[] { "Venezuela · BCV", "www.bcv.org.ve", "ping" },
+            new string[] { "Venezuela · Conatel", "www.conatel.gob.ve", "443" },
+            new string[] { "Venezuela · ULA (Mérida)", "www.ula.ve", "443" },
+            new string[] { "Venezuela · UCV (Caracas)", "www.ucv.ve", "80" } };
+        static readonly string[][] Brasil = {
+            new string[] { "Brasil · Vultr São Paulo", "sao-br-ping.vultr.com", "ping" },
+            new string[] { "Brasil · USP (São Paulo)", "sft.if.usp.br", "ping" },
+            new string[] { "Brasil · UFPR (Curitiba)", "ubuntu.c3sl.ufpr.br", "ping" },
+            new string[] { "Brasil · UEPG (Paraná)", "mirror.uepg.br", "ping" },
+            new string[] { "Brasil · UFSCar (São Carlos)", "mirror.ufscar.br", "ping" } };
+        static readonly string[][] EeuuExtra = {
+            new string[] { "EE.UU. · Leaseweb Miami", "speedtest.mia11.us.leaseweb.net", "ping" },
+            new string[] { "EE.UU. · Leaseweb Washington", "speedtest.wdc2.us.leaseweb.net", "ping" },
+            new string[] { "EE.UU. · Leaseweb Dallas", "speedtest.dal13.us.leaseweb.net", "ping" } };
+
+        CheckBox chkSinVpn;
+        IPAddress salidaFisica;
 
         static readonly int[] Duraciones = { 30, 60, 120, 300, 600, 1800 };
         static readonly string[] NombresDuracion = { "30 segundos", "1 minuto", "2 minutos", "5 minutos", "10 minutos", "30 minutos" };
@@ -3828,21 +4807,45 @@ namespace MonitorPing
             panel.Padding = new Padding(12, 10, 12, 10);
 
             panel.Controls.Add(Etiqueta("Manda paquetes a los servidores que marques, todos a la vez, y cuenta cuántos se pierden. " +
-                "Si pierden todos, el problema es tu conexión; si pierde solo uno, es la ruta hasta ese servidor.", ancho, false));
+                "Si pierden todos, el problema es tu conexión; si pierde solo uno, es la ruta hasta ese servidor. " +
+                "Si Venezuela va limpio y fuera (EE.UU., Brasil) se pierde, el problema es la salida internacional de tu proveedor.", ancho, false));
+
+            salidaFisica = Red.SalidaFisica();
+            chkSinVpn = new CheckBox();
+            chkSinVpn.AutoSize = true;
+            chkSinVpn.Text = salidaFisica != null ? "Salir por el Wi-Fi o cable (" + salidaFisica + ") aunque la VPN esté encendida" : "Salir por el Wi-Fi o cable (no se encontró ninguno)";
+            chkSinVpn.Enabled = salidaFisica != null;
+            chkSinVpn.Checked = salidaFisica != null;
+            panel.Controls.Add(chkSinVpn);
+            opciones.Add(chkSinVpn);
             if (vpn != null)
             {
-                Label aviso = Etiqueta("La VPN (" + vpn + ") está activa: la prueba mediría el camino de la VPN. Apágala para probar tu conexión real.", ancho, false);
+                Label aviso = Etiqueta("La VPN (" + vpn + ") está activa. Con la casilla de arriba marcada se mide tu conexión real; sin marcar, el camino de la VPN.", ancho, false);
                 aviso.ForeColor = tema.TextoAviso;
                 panel.Controls.Add(aviso);
             }
 
-            panel.Controls.Add(Etiqueta("Servidores:", ancho, false));
+            FlowLayoutPanel filaRegiones = Horizontal();
+            filaRegiones.Controls.Add(EtiquetaCentrada("Servidores:"));
+            foreach (string[] r in new string[][] { new string[] { "Venezuela", "Venezuela ·" }, new string[] { "EE.UU.", "EE.UU. ·" },
+                                                    new string[] { "Brasil", "Brasil ·" }, new string[] { "Ninguno", "" } })
+            {
+                string prefijo = r[1];
+                Button b = new Button();
+                b.Text = r[0] == "Ninguno" ? "Desmarcar todo" : "Marcar " + r[0];
+                b.AutoSize = true;
+                b.Click += delegate { MarcarRegion(prefijo); };
+                filaRegiones.Controls.Add(b);
+                opciones.Add(b);
+            }
+            panel.Controls.Add(filaRegiones);
             lstServidores = new CheckedListBox();
             lstServidores.CheckOnClick = true;
             lstServidores.Width = ancho;
-            lstServidores.Height = (int)(150 * k);
+            lstServidores.Height = (int)(190 * k);
             lstServidores.IntegralHeight = false;
             LlenarServidores(cfg, mejorGfn, mejorXcloud);
+            Shown += delegate { BuscarSalida(); };
             panel.Controls.Add(lstServidores);
             opciones.Add(lstServidores);
 
@@ -3884,7 +4887,7 @@ namespace MonitorPing
             opciones.Add(cmbDuracion);
             opciones.Add(cmbRitmo);
             opciones.Add(cmbTamano);
-            panel.Controls.Add(Etiqueta("Los servidores de juego (TCP) no responden al ping: se miden con una conexión, como máximo " +
+            panel.Controls.Add(Etiqueta("Los marcados (TCP) no responden al ping: se miden con una conexión, como máximo " +
                 PruebaPerdida.MaxTcpPorSegundo + " por segundo. El tamaño solo afecta a los demás.", ancho, true));
 
             FlowLayoutPanel filaBotones = Horizontal();
@@ -3937,12 +4940,15 @@ namespace MonitorPing
         void LlenarServidores(Config cfg, int mejorGfn, int mejorXcloud)
         {
             IPAddress gw = Native.PuertaDeEnlace();
-            if (gw != null) AgregarOpcion("Router (" + gw + ")", gw.ToString(), false, true);
+            if (gw != null) AgregarOpcion("Router (" + gw + ")", gw.ToString(), false, true).Region = "local";
+            for (int i = 0; i < Venezuela.Length; i++) AgregarLista(Venezuela[i], "ve", i < 3);
             AgregarOpcion("Cloudflare (1.1.1.1)", "1.1.1.1", false, true);
             AgregarOpcion("Google (8.8.8.8)", "8.8.8.8", false, false);
             for (int i = 0; i < Servidores.Hosts.Length; i++)
                 AgregarOpcion("EE.UU. · " + Servidores.Nombres[i], Servidores.Hosts[i], false,
                     string.Equals(Servidores.Hosts[i], cfg.ServidorEEUU, StringComparison.OrdinalIgnoreCase));
+            for (int i = 0; i < EeuuExtra.Length; i++) AgregarLista(EeuuExtra[i], "int", i == 0);
+            for (int i = 0; i < Brasil.Length; i++) AgregarLista(Brasil[i], "int", i < 2);
             int zg = ListaZonas.Gfn.Indice(cfg.ZonaGfn);
             if (zg < 0) zg = mejorGfn;
             for (int i = 0; i < ListaZonas.Gfn.Hosts.Length; i++)
@@ -3953,13 +4959,69 @@ namespace MonitorPing
                 AgregarOpcion("xCloud · " + ListaZonas.Xcloud.Nombres[i], ListaZonas.Xcloud.Hosts[i], true, i == zx);
         }
 
-        void AgregarOpcion(string nombre, string host, bool tcp, bool marcada)
+        Opcion AgregarOpcion(string nombre, string host, bool tcp, bool marcada)
         {
             Opcion o = new Opcion();
             o.Nombre = nombre;
             o.Host = host;
             o.Tcp = tcp;
             lstServidores.Items.Add(o, marcada);
+            return o;
+        }
+
+        // { nombre, host, "ping" o el puerto TCP }
+        void AgregarLista(string[] s, string region, bool marcada)
+        {
+            Opcion o = AgregarOpcion(s[0], s[1], s[2] != "ping", marcada);
+            if (o.Tcp) o.Puerto = int.Parse(s[2]);
+            o.Region = region;
+        }
+
+        // Busca por la conexión física el último router de tu proveedor y el primero fuera de él (en Net Uno: la entrada
+        // a GlobeNet) y los añade debajo del router: si la pérdida empieza entre los dos, es la salida internacional
+        void BuscarSalida()
+        {
+            IPAddress origen = salidaFisica;
+            if (origen == null) return;
+            Thread t = new Thread(delegate ()
+            {
+                string interno, externo, nombre;
+                IcmpDesde.Salida(origen, out interno, out externo, out nombre);
+                if (interno == null && externo == null) return;
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (IsDisposed || (prueba != null && !prueba.Terminado)) return;
+                        int pos = lstServidores.Items.Count > 0 && ((Opcion)lstServidores.Items[0]).Region == "local" ? 1 : 0;
+                        if (interno != null) InsertarOpcion(pos++, "Tu proveedor · último router antes de salir (" + interno + ")", interno, "ve");
+                        if (externo != null) InsertarOpcion(pos, "Primer router fuera de tu proveedor · " + (nombre == "" ? "" : nombre + " ") + "(" + externo + ")", externo, "int");
+                    });
+                }
+                catch { } // ventana cerrada
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        void InsertarOpcion(int pos, string nombre, string host, string region)
+        {
+            Opcion o = new Opcion();
+            o.Nombre = nombre;
+            o.Host = host;
+            o.Region = region;
+            lstServidores.Items.Insert(pos, o);
+            lstServidores.SetItemChecked(pos, true);
+        }
+
+        // Prefijo vacío = desmarcar todo
+        void MarcarRegion(string prefijo)
+        {
+            for (int i = 0; i < lstServidores.Items.Count; i++)
+            {
+                if (prefijo == "") lstServidores.SetItemChecked(i, false);
+                else if (((Opcion)lstServidores.Items[i]).Nombre.StartsWith(prefijo)) lstServidores.SetItemChecked(i, true);
+            }
         }
 
         void IniciarODetener()
@@ -3979,7 +5041,8 @@ namespace MonitorPing
             int segundos = Duraciones[cmbDuracion.SelectedIndex], ritmo = Ritmos[cmbRitmo.SelectedIndex];
             prueba = new PruebaPerdida();
             prueba.Tamano = cmbTamano.SelectedIndex == 0 ? 32 : 1200;
-            foreach (Opcion o in lstServidores.CheckedItems) prueba.Agregar(o.Nombre, o.Host, o.Tcp, ritmo, segundos);
+            if (chkSinVpn.Checked) prueba.Origen = salidaFisica = Red.SalidaFisica() ?? salidaFisica; // por si cambió la IP del Wi-Fi
+            foreach (Opcion o in lstServidores.CheckedItems) prueba.Agregar(o.Nombre, o.Host, o.Tcp, o.Puerto, o.Region, ritmo, segundos);
 
             lvResultados.Items.Clear();
             foreach (PruebaPerdida.Destino d in prueba.Destinos)
@@ -3991,7 +5054,8 @@ namespace MonitorPing
             inicio = DateTime.Now;
             segundosTotal = segundos;
             parametros = inicio.ToString("dd/MM/yyyy HH:mm") + " · " + NombresDuracion[cmbDuracion.SelectedIndex] + " · " +
-                         ritmo + " paquetes por segundo · " + prueba.Tamano + " bytes";
+                         ritmo + " paquetes por segundo · " + prueba.Tamano + " bytes · " +
+                         (prueba.Origen != null ? "por el Wi-Fi/cable, sin VPN" : "ruta normal");
             foreach (Control c in opciones) c.Enabled = false;
             btnCopiar.Enabled = false;
             btnIniciar.Text = "Detener";
@@ -4072,7 +5136,7 @@ namespace MonitorPing
             catch { lblTiempo.Text = "No se pudo copiar al portapapeles; vuelve a intentarlo."; }
         }
 
-        static ComboBox Desplegable(string[] items, int seleccion, int ancho)
+        internal static ComboBox Desplegable(string[] items, int seleccion, int ancho)
         {
             ComboBox c = new ComboBox();
             c.DropDownStyle = ComboBoxStyle.DropDownList;
@@ -4082,7 +5146,7 @@ namespace MonitorPing
             return c;
         }
 
-        static Label Etiqueta(string texto, int ancho, bool tenue)
+        internal static Label Etiqueta(string texto, int ancho, bool tenue)
         {
             Label l = new Label();
             l.Text = texto;
@@ -4092,7 +5156,7 @@ namespace MonitorPing
             return l;
         }
 
-        static Label EtiquetaCentrada(string texto)
+        internal static Label EtiquetaCentrada(string texto)
         {
             Label l = new Label();
             l.Text = texto;
@@ -4101,7 +5165,7 @@ namespace MonitorPing
             return l;
         }
 
-        static FlowLayoutPanel Horizontal()
+        internal static FlowLayoutPanel Horizontal()
         {
             FlowLayoutPanel p = new FlowLayoutPanel();
             p.FlowDirection = FlowDirection.LeftToRight;
@@ -4110,6 +5174,703 @@ namespace MonitorPing
             p.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             p.Margin = new Padding(0, 3, 0, 3);
             return p;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) reloj.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    // Prueba de velocidad con servidores que no son de Speedtest (Leaseweb, Vultr, universidades de Brasil, Cloudflare).
+    // Algunos proveedores tratan mejor el tráfico de Speedtest; con estos servidores se ve la velocidad de verdad.
+    // Los de Speedtest de Venezuela se miden igual, como referencia para comparar.
+    class PruebaVelocidad
+    {
+        public class Servidor
+        {
+            public string Nombre, Region, Bajada, Subida, Listado; // Listado: carpeta donde buscar un .iso para la bajada
+            public bool Oficial;
+            public string Host;
+            public int Puerto;
+            // resultados (-1 = sin medir)
+            public volatile string Estado = "";
+            public int Ping = -1, PingCarga = -1;
+            public double MbpsBajada = -1, MbpsSubida = -1, PicoBajada = -1;
+            public long Bytes;
+            public string Error;
+        }
+
+        public const int Conexiones = 4;   // en paralelo, como hacen los speedtest: una sola conexión no llena la línea
+        public readonly List<Servidor> Servidores = new List<Servidor>();
+        public IPAddress Origen;           // IP local del Wi-Fi o cable para saltarse la VPN; null = ruta normal
+        public int Segundos = 10;          // por cada sentido
+        volatile bool cancelado;
+        volatile bool terminado;
+        public volatile Servidor Actual;
+        public volatile string Fase = "";
+        public double MbpsAhora;           // velocidad del último segundo
+        public bool Terminado { get { return terminado; } }
+        public bool Cancelado { get { return cancelado; } }
+
+        static PruebaVelocidad()
+        {
+            try { ServicePointManager.SecurityProtocol |= (SecurityProtocolType)3072; } catch { } // TLS 1.2
+            ServicePointManager.Expect100Continue = false;
+            if (ServicePointManager.DefaultConnectionLimit < 32) ServicePointManager.DefaultConnectionLimit = 32;
+        }
+
+        public static Servidor Crear(string nombre, string region, string host, int puerto, string bajada, string subida)
+        {
+            Servidor s = new Servidor();
+            s.Nombre = nombre;
+            s.Region = region;
+            s.Host = host;
+            s.Puerto = puerto;
+            s.Bajada = bajada;
+            s.Subida = subida;
+            return s;
+        }
+
+        // Servidores no oficiales (comprobados en noviembre de 2026)
+        public static List<Servidor> NoOficiales()
+        {
+            List<Servidor> l = new List<Servidor>();
+            l.Add(Crear("Leaseweb Miami", "EE.UU.", "speedtest.mia11.us.leaseweb.net", 80, "http://speedtest.mia11.us.leaseweb.net/1000mb.bin", null));
+            l.Add(Crear("Leaseweb Washington", "EE.UU.", "speedtest.wdc2.us.leaseweb.net", 80, "http://speedtest.wdc2.us.leaseweb.net/1000mb.bin", null));
+            l.Add(Crear("Leaseweb Dallas", "EE.UU.", "speedtest.dal13.us.leaseweb.net", 80, "http://speedtest.dal13.us.leaseweb.net/1000mb.bin", null));
+            l.Add(Crear("Vultr Miami", "EE.UU.", "fl-us-ping.vultr.com", 443, "https://fl-us-ping.vultr.com/vultr.com.1000MB.bin", null));
+            l.Add(Crear("Vultr Atlanta", "EE.UU.", "ga-us-ping.vultr.com", 443, "https://ga-us-ping.vultr.com/vultr.com.1000MB.bin", null));
+            l.Add(Crear("Vultr Dallas", "EE.UU.", "tx-us-ping.vultr.com", 443, "https://tx-us-ping.vultr.com/vultr.com.1000MB.bin", null));
+            l.Add(Crear("Vultr Nueva Jersey", "EE.UU.", "nj-us-ping.vultr.com", 443, "https://nj-us-ping.vultr.com/vultr.com.1000MB.bin", null));
+            l.Add(Crear("Vultr São Paulo", "Brasil", "sao-br-ping.vultr.com", 443, "https://sao-br-ping.vultr.com/vultr.com.1000MB.bin", null));
+            Servidor usp = Crear("USP (São Paulo)", "Brasil", "sft.if.usp.br", 80, null, null);
+            usp.Listado = "http://sft.if.usp.br/ubuntu-releases/noble/";
+            l.Add(usp);
+            Servidor ufpr = Crear("UFPR (Curitiba)", "Brasil", "ubuntu.c3sl.ufpr.br", 443, null, null);
+            ufpr.Listado = "https://ubuntu.c3sl.ufpr.br/releases/noble/";
+            l.Add(ufpr);
+            Servidor uepg = Crear("UEPG (Paraná)", "Brasil", "mirror.uepg.br", 443, null, null);
+            uepg.Listado = "https://mirror.uepg.br/ubuntu-releases/noble/";
+            l.Add(uepg);
+            l.Add(Crear("Cloudflare (CDN)", "Otros", "speed.cloudflare.com", 443,
+                "https://speed.cloudflare.com/__down?bytes=50000000", "https://speed.cloudflare.com/__up"));
+            return l;
+        }
+
+        // Servidores de Speedtest (Ookla) más cercanos según tu IP real: se piden por la salida elegida, no por la VPN
+        public static List<Servidor> Oficiales(IPAddress origen, int cuantos)
+        {
+            List<Servidor> l = new List<Servidor>();
+            string json = Texto("https://www.speedtest.net/api/js/servers?engine=js&limit=" + cuantos + "&https_functional=true", origen);
+            if (json == null) return l;
+            foreach (string obj in json.Split(new string[] { "},{" }, StringSplitOptions.None))
+            {
+                string host = Campo(obj, "host"), sponsor = Campo(obj, "sponsor"), ciudad = Campo(obj, "name"), pais = Campo(obj, "country");
+                if (host == null || sponsor == null) continue;
+                string h = host;
+                int puerto = 8080;
+                int dp = host.LastIndexOf(':');
+                if (dp > 0) { int.TryParse(host.Substring(dp + 1), out puerto); h = host.Substring(0, dp); }
+                Servidor s = Crear(sponsor + " (" + ciudad + ")", pais == "Venezuela" ? "Venezuela" : (pais ?? "Otros"), h, puerto,
+                    "https://" + host + "/download?size=100000000", "https://" + host + "/upload");
+                s.Oficial = true;
+                l.Add(s);
+            }
+            return l;
+        }
+
+        static string Campo(string obj, string nombre)
+        {
+            System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(obj, "\"" + nombre + "\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
+            if (!m.Success) return null;
+            return System.Text.RegularExpressions.Regex.Unescape(m.Groups[1].Value);
+        }
+
+        static HttpWebRequest Pedido(string url, IPAddress origen)
+        {
+            HttpWebRequest r = (HttpWebRequest)WebRequest.Create(url);
+            r.Proxy = null;
+            r.Timeout = 8000;
+            r.ReadWriteTimeout = 8000;
+            r.UserAgent = "MonitorPing";
+            r.AutomaticDecompression = DecompressionMethods.None;
+            // Solo se descargan datos de relleno: los certificados de algunos servidores de Speedtest no coinciden con el nombre
+            r.ServerCertificateValidationCallback = delegate { return true; };
+            r.ConnectionGroupName = origen != null ? "fisica-" + origen : "normal";
+            if (origen != null)
+                r.ServicePoint.BindIPEndPointDelegate = delegate(ServicePoint sp, IPEndPoint remoto, int intentos)
+                {
+                    return remoto.AddressFamily == AddressFamily.InterNetwork ? new IPEndPoint(origen, 0) : null;
+                };
+            return r;
+        }
+
+        static string Texto(string url, IPAddress origen)
+        {
+            try
+            {
+                HttpWebRequest r = Pedido(url, origen);
+                using (WebResponse resp = r.GetResponse())
+                using (StreamReader sr = new StreamReader(resp.GetResponseStream())) return sr.ReadToEnd();
+            }
+            catch { return null; }
+        }
+
+        public void Iniciar()
+        {
+            Thread t = new Thread(delegate ()
+            {
+                try { foreach (Servidor s in Servidores) { if (cancelado) break; Medir(s); } }
+                finally { Actual = null; terminado = true; }
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        public void Cancelar() { cancelado = true; }
+
+        void Medir(Servidor s)
+        {
+            Actual = s;
+            s.Estado = "midiendo ping";
+            Fase = "ping";
+            IPAddress ip = Sonda.Resolver(s.Host);
+            if (ip == null) { s.Error = "no se encuentra"; s.Estado = ""; return; }
+
+            List<int> pings = new List<int>();
+            for (int i = 0; i < 5 && !cancelado; i++)
+            {
+                int ms = Red.PingTcp(ip, s.Puerto, Origen, 1500);
+                if (ms >= 0) pings.Add(ms);
+                Thread.Sleep(150);
+            }
+            if (pings.Count == 0) { s.Error = "no responde"; s.Estado = ""; return; }
+            pings.Sort();
+            s.Ping = pings[0];
+
+            string bajada = s.Bajada;
+            if (bajada == null && s.Listado != null)
+            {
+                s.Estado = "buscando archivo";
+                string html = Texto(s.Listado, Origen);
+                if (html != null)
+                {
+                    System.Text.RegularExpressions.MatchCollection mc = System.Text.RegularExpressions.Regex.Matches(html, "href=\"(ubuntu-[^\"/]+\\.iso)\"");
+                    if (mc.Count > 0) bajada = s.Listado + mc[mc.Count - 1].Groups[1].Value;
+                }
+                if (bajada == null) { s.Error = "sin archivo para descargar"; s.Estado = ""; return; }
+            }
+
+            if (cancelado) return;
+            s.Estado = "bajada";
+            Fase = "bajada";
+            List<int> conCarga = new List<int>();
+            double pico;
+            s.MbpsBajada = Transferir(s, bajada, false, ip, conCarga, out pico);
+            s.PicoBajada = pico;
+            if (conCarga.Count > 0) { conCarga.Sort(); s.PingCarga = conCarga[conCarga.Count / 2]; }
+
+            if (s.Subida != null && !cancelado)
+            {
+                s.Estado = "subida";
+                Fase = "subida";
+                s.MbpsSubida = Transferir(s, s.Subida, true, ip, null, out pico);
+            }
+            s.Estado = "";
+        }
+
+        // Varias conexiones a la vez durante Segundos; se descartan los primeros 2 s (arranque de TCP).
+        // Devuelve los Mbps medios (o -1 si no pasó nada) y el mejor segundo en pico.
+        double Transferir(Servidor s, string url, bool subir, IPAddress ip, List<int> conCarga, out double pico)
+        {
+            pico = -1;
+            long bytes = 0;
+            bool parar = false;
+            string error = null;
+            List<HttpWebRequest> abiertos = new List<HttpWebRequest>();
+            byte[] relleno = new byte[65536];
+            new Random().NextBytes(relleno); // datos al azar: así no se pueden comprimir por el camino
+            Thread[] hilos = new Thread[Conexiones];
+            for (int c = 0; c < Conexiones; c++)
+            {
+                hilos[c] = new Thread(delegate ()
+                {
+                    byte[] buf = new byte[65536];
+                    while (!Volatile.Read(ref parar) && !cancelado)
+                    {
+                        try
+                        {
+                            string u = url + (url.Contains("?") ? "&" : "?") + "r=" + Guid.NewGuid().ToString("N").Substring(0, 8);
+                            if (url.EndsWith(".bin") || url.EndsWith(".iso")) u = url; // archivos fijos: sin parámetros por si el servidor los rechaza
+                            HttpWebRequest r = Pedido(u, Origen);
+                            lock (abiertos) abiertos.Add(r);
+                            if (subir)
+                            {
+                                const int tamano = 50000000;
+                                r.Method = "POST";
+                                r.ContentType = "application/octet-stream";
+                                r.ContentLength = tamano;
+                                r.AllowWriteStreamBuffering = false;
+                                using (Stream st = r.GetRequestStream())
+                                {
+                                    int enviados = 0;
+                                    while (enviados < tamano && !Volatile.Read(ref parar) && !cancelado)
+                                    {
+                                        int n = Math.Min(relleno.Length, tamano - enviados);
+                                        st.Write(relleno, 0, n);
+                                        enviados += n;
+                                        Interlocked.Add(ref bytes, n);
+                                    }
+                                    if (enviados < tamano) { r.Abort(); break; }
+                                }
+                                using (WebResponse resp = r.GetResponse()) { }
+                            }
+                            else
+                            {
+                                using (WebResponse resp = r.GetResponse())
+                                using (Stream st = resp.GetResponseStream())
+                                {
+                                    int n;
+                                    while ((n = st.Read(buf, 0, buf.Length)) > 0)
+                                    {
+                                        Interlocked.Add(ref bytes, n);
+                                        if (Volatile.Read(ref parar) || cancelado) { r.Abort(); break; }
+                                    }
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            if (Volatile.Read(ref parar) || cancelado) break;
+                            error = ex.Message;
+                            Thread.Sleep(300);
+                        }
+                    }
+                });
+                hilos[c].IsBackground = true;
+                hilos[c].Start();
+            }
+
+            // Ping con carga: mientras se descarga, una conexión cada medio segundo al mismo servidor
+            Thread hiloPing = null;
+            if (conCarga != null)
+            {
+                hiloPing = new Thread(delegate ()
+                {
+                    Thread.Sleep(1500);
+                    while (!Volatile.Read(ref parar) && !cancelado)
+                    {
+                        int ms = Red.PingTcp(ip, s.Puerto, Origen, 2000);
+                        lock (conCarga) conCarga.Add(ms < 0 ? 2000 : ms);
+                        Thread.Sleep(500);
+                    }
+                });
+                hiloPing.IsBackground = true;
+                hiloPing.Start();
+            }
+
+            const int Calentamiento = 2000;
+            Stopwatch reloj = Stopwatch.StartNew();
+            long previo = 0, alArrancar = -1;
+            long tPrevio = 0, tArranque = 0;
+            Queue<long[]> ventana = new Queue<long[]>();
+            while (reloj.ElapsedMilliseconds < Segundos * 1000L && !cancelado)
+            {
+                Thread.Sleep(250);
+                long ahora = reloj.ElapsedMilliseconds, b = Interlocked.Read(ref bytes);
+                ventana.Enqueue(new long[] { ahora, b });
+                while (ventana.Count > 1 && ahora - ventana.Peek()[0] > 1000) ventana.Dequeue();
+                long[] viejo = ventana.Peek();
+                if (ahora > viejo[0])
+                {
+                    double mbps = (b - viejo[1]) * 8.0 / 1000.0 / (ahora - viejo[0]);
+                    MbpsAhora = mbps;
+                    if (ahora >= Calentamiento + 1000 && mbps > pico) pico = mbps;
+                }
+                if (alArrancar < 0 && ahora >= Calentamiento) { alArrancar = b; tArranque = ahora; }
+                previo = b;
+                tPrevio = ahora;
+            }
+            Volatile.Write(ref parar, true);
+            lock (abiertos) foreach (HttpWebRequest r in abiertos) try { r.Abort(); } catch { }
+            foreach (Thread h in hilos) h.Join(3000);
+            if (hiloPing != null) hiloPing.Join(3000);
+            MbpsAhora = 0;
+            s.Bytes += Interlocked.Read(ref bytes);
+            if (alArrancar < 0 || tPrevio <= tArranque || previo - alArrancar <= 0)
+            {
+                if (s.Error == null) s.Error = error ?? "sin datos";
+                return -1;
+            }
+            return (previo - alArrancar) * 8.0 / 1000.0 / (tPrevio - tArranque);
+        }
+
+        // Compara los de Speedtest con los no oficiales
+        public string Conclusion(out Color color)
+        {
+            Tema t = Tema.Actual;
+            Servidor mejorOficial = null, mejorLibre = null, peorCarga = null;
+            foreach (Servidor s in Servidores)
+            {
+                if (s.MbpsBajada <= 0) continue;
+                if (s.Oficial) { if (mejorOficial == null || s.MbpsBajada > mejorOficial.MbpsBajada) mejorOficial = s; }
+                else if (mejorLibre == null || s.MbpsBajada > mejorLibre.MbpsBajada) mejorLibre = s;
+                if (s.Ping >= 0 && s.PingCarga >= 0 && (peorCarga == null || s.PingCarga - s.Ping > peorCarga.PingCarga - peorCarga.Ping)) peorCarga = s;
+            }
+            string carga = "";
+            if (peorCarga != null && peorCarga.PingCarga - peorCarga.Ping >= 100)
+                carga = " Además el ping sube mucho al descargar (" + peorCarga.Ping + " → " + peorCarga.PingCarga + " ms con " + peorCarga.Nombre +
+                        "): si alguien descarga mientras juegas, vas a notar lag.";
+            if (mejorLibre == null && mejorOficial == null)
+            {
+                color = t.TenueVentana;
+                return "No se pudo medir ningún servidor." + carga;
+            }
+            if (mejorLibre == null)
+            {
+                color = t.TenueVentana;
+                return "Solo respondieron los servidores de Speedtest (" + Mbps(mejorOficial.MbpsBajada) + "): no hay con qué comparar." + carga;
+            }
+            if (mejorOficial == null)
+            {
+                color = t.Texto;
+                return "Tu mejor velocidad real fue " + Mbps(mejorLibre.MbpsBajada) + " con " + mejorLibre.Nombre + "." + carga;
+            }
+            double r = mejorOficial.MbpsBajada / mejorLibre.MbpsBajada;
+            if (r >= 1.5)
+            {
+                color = t.TextoMal;
+                return "Speedtest da " + Mbps(mejorOficial.MbpsBajada) + ", pero fuera de Speedtest lo mejor fue " + Mbps(mejorLibre.MbpsBajada) +
+                       " (" + mejorLibre.Nombre + "). Puede que tu proveedor trate mejor a Speedtest o que su salida internacional vaya saturada: " +
+                       "lo que notas al jugar es la cifra de los no oficiales." + carga;
+            }
+            if (r >= 1.15)
+            {
+                color = t.TextoAviso;
+                return "Speedtest da algo más (" + Mbps(mejorOficial.MbpsBajada) + ") que los no oficiales (" + Mbps(mejorLibre.MbpsBajada) +
+                       " con " + mejorLibre.Nombre + "): diferencia pequeña, normal por la distancia." + carga;
+            }
+            color = t.TextoOk;
+            return "Speedtest (" + Mbps(mejorOficial.MbpsBajada) + ") y los no oficiales (" + Mbps(mejorLibre.MbpsBajada) + " con " + mejorLibre.Nombre +
+                   ") van parecidos: no se nota trato especial a Speedtest." + carga;
+        }
+
+        public static string Mbps(double v)
+        {
+            if (v < 0) return "–";
+            return (v >= 100 ? Math.Round(v).ToString() : v.ToString("0.0")) + " Mbps";
+        }
+    }
+
+    class PruebaVelocidadForm : VentanaTema
+    {
+        static readonly int[] Duraciones = { 6, 10, 20 };
+        static readonly string[] NombresDuracion = { "Corta (6 s)", "Normal (10 s)", "Larga (20 s)" };
+
+        class Opcion
+        {
+            public PruebaVelocidad.Servidor S;
+            public override string ToString()
+            {
+                return S.Region + " · " + S.Nombre + (S.Oficial ? "   (Speedtest oficial)" : "") + (S.Subida != null ? "   ↑↓" : "");
+            }
+        }
+
+        CheckedListBox lstServidores;
+        CheckBox chkSinVpn;
+        ComboBox cmbDuracion;
+        Button btnIniciar, btnCopiar;
+        ProgressBar barra;
+        Label lblEstado, lblConclusion, lblBuscando;
+        ListView lvResultados;
+        readonly List<Control> opciones = new List<Control>();
+        readonly System.Windows.Forms.Timer reloj = new System.Windows.Forms.Timer();
+        PruebaVelocidad prueba;
+        IPAddress salidaFisica;
+        string parametros = "";
+
+        public PruebaVelocidadForm(string vpn)
+        {
+            Text = "MonitorPing - Prueba de velocidad (servidores no oficiales)";
+            FormBorderStyle = FormBorderStyle.FixedDialog;
+            MaximizeBox = false;
+            ShowIcon = false;
+            StartPosition = FormStartPosition.CenterScreen;
+            Font = new Font("Segoe UI", 9f);
+            AutoSize = true;
+            AutoSizeMode = AutoSizeMode.GrowAndShrink;
+
+            float k;
+            using (Graphics g = Graphics.FromHwnd(IntPtr.Zero)) k = g.DpiX / 96f;
+            int ancho = (int)(620 * k);
+
+            FlowLayoutPanel panel = new FlowLayoutPanel();
+            panel.FlowDirection = FlowDirection.TopDown;
+            panel.WrapContents = false;
+            panel.AutoSize = true;
+            panel.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            panel.Padding = new Padding(12, 10, 12, 10);
+
+            panel.Controls.Add(PruebaPerdidaForm.Etiqueta("Mide la bajada y la subida con servidores que no son de Speedtest (Leaseweb, Vultr, universidades de Brasil, Cloudflare). " +
+                "Algunos proveedores dan toda la velocidad solo cuando detectan Speedtest; estos servidores muestran la velocidad real. " +
+                "En Venezuela no hay servidores públicos de descarga fuera de Speedtest: los de Speedtest se miden igual para comparar.", ancho, false));
+
+            salidaFisica = Red.SalidaFisica();
+            chkSinVpn = new CheckBox();
+            chkSinVpn.AutoSize = true;
+            chkSinVpn.Text = salidaFisica != null ? "Salir por el Wi-Fi o cable (" + salidaFisica + ") aunque la VPN esté encendida" : "Salir por el Wi-Fi o cable (no se encontró ninguno)";
+            chkSinVpn.Enabled = salidaFisica != null;
+            chkSinVpn.Checked = salidaFisica != null;
+            panel.Controls.Add(chkSinVpn);
+            opciones.Add(chkSinVpn);
+            if (vpn != null)
+            {
+                Label aviso = PruebaPerdidaForm.Etiqueta("La VPN (" + vpn + ") está activa. Con la casilla de arriba marcada se mide tu conexión real; sin marcar, la de la VPN.", ancho, false);
+                aviso.ForeColor = tema.TextoAviso;
+                panel.Controls.Add(aviso);
+            }
+
+            FlowLayoutPanel filaRegiones = PruebaPerdidaForm.Horizontal();
+            filaRegiones.Controls.Add(PruebaPerdidaForm.EtiquetaCentrada("Servidores:"));
+            foreach (string r in new string[] { "Venezuela", "EE.UU.", "Brasil", "" })
+            {
+                string region = r;
+                Button b = new Button();
+                b.Text = r == "" ? "Desmarcar todo" : "Marcar " + r;
+                b.AutoSize = true;
+                b.Click += delegate { MarcarRegion(region); };
+                filaRegiones.Controls.Add(b);
+                opciones.Add(b);
+            }
+            panel.Controls.Add(filaRegiones);
+
+            lstServidores = new CheckedListBox();
+            lstServidores.CheckOnClick = true;
+            lstServidores.Width = ancho;
+            lstServidores.Height = (int)(190 * k);
+            lstServidores.IntegralHeight = false;
+            string[] marcados = { "Leaseweb Miami", "Vultr Miami", "Vultr São Paulo", "USP (São Paulo)", "Cloudflare (CDN)" };
+            foreach (PruebaVelocidad.Servidor s in PruebaVelocidad.NoOficiales())
+            {
+                Opcion o = new Opcion();
+                o.S = s;
+                lstServidores.Items.Add(o, Array.IndexOf(marcados, s.Nombre) >= 0);
+            }
+            panel.Controls.Add(lstServidores);
+            opciones.Add(lstServidores);
+            lblBuscando = PruebaPerdidaForm.Etiqueta("Buscando los servidores de Speedtest más cercanos...", ancho, true);
+            panel.Controls.Add(lblBuscando);
+            panel.Controls.Add(PruebaPerdidaForm.Etiqueta("↑↓ = también mide la subida. Los demás solo publican archivos para descargar: no ofrecen prueba de subida, así que en ellos se mide solo la bajada. " +
+                "Cada servidor puede gastar varios cientos de MB si tu conexión es rápida.", ancho, true));
+
+            FlowLayoutPanel filaParametros = PruebaPerdidaForm.Horizontal();
+            cmbDuracion = PruebaPerdidaForm.Desplegable(NombresDuracion, 1, (int)(120 * k));
+            filaParametros.Controls.Add(PruebaPerdidaForm.EtiquetaCentrada("Duración por servidor:"));
+            filaParametros.Controls.Add(cmbDuracion);
+            panel.Controls.Add(filaParametros);
+            opciones.Add(cmbDuracion);
+
+            FlowLayoutPanel filaBotones = PruebaPerdidaForm.Horizontal();
+            filaBotones.Margin = new Padding(0, 8, 0, 4);
+            btnIniciar = new Button();
+            btnIniciar.Text = "Iniciar prueba";
+            btnIniciar.Tag = "principal";
+            btnIniciar.AutoSize = true;
+            btnIniciar.Click += delegate { IniciarODetener(); };
+            btnCopiar = new Button();
+            btnCopiar.Text = "Copiar resultados";
+            btnCopiar.AutoSize = true;
+            btnCopiar.Enabled = false;
+            btnCopiar.Click += delegate { Copiar(); };
+            filaBotones.Controls.Add(btnIniciar);
+            filaBotones.Controls.Add(btnCopiar);
+            panel.Controls.Add(filaBotones);
+
+            barra = new ProgressBar();
+            barra.Width = ancho;
+            panel.Controls.Add(barra);
+            lblEstado = PruebaPerdidaForm.Etiqueta("", ancho, true);
+            panel.Controls.Add(lblEstado);
+
+            lvResultados = new ListView();
+            lvResultados.View = View.Details;
+            lvResultados.FullRowSelect = true;
+            lvResultados.HeaderStyle = ColumnHeaderStyle.Nonclickable;
+            lvResultados.Width = ancho;
+            lvResultados.Height = (int)(190 * k);
+            string[] columnas = { "Servidor", "Tipo", "Ping", "Con carga", "Bajada", "Pico", "Subida" };
+            int[] anchos = { 200, 70, 46, 70, 76, 76, 70 };
+            for (int i = 0; i < columnas.Length; i++)
+                lvResultados.Columns.Add(columnas[i], (int)(anchos[i] * k), i < 2 ? HorizontalAlignment.Left : HorizontalAlignment.Right);
+            panel.Controls.Add(lvResultados);
+            panel.Controls.Add(PruebaPerdidaForm.Etiqueta("Ping en ms. Con carga: el ping mientras se descarga (si sube mucho, hay bufferbloat). " +
+                "Pico: el mejor segundo de la bajada.", ancho, true));
+
+            lblConclusion = PruebaPerdidaForm.Etiqueta("", ancho, false);
+            lblConclusion.Font = new Font("Segoe UI Semibold", 9.5f);
+            lblConclusion.Margin = new Padding(3, 6, 3, 3);
+            panel.Controls.Add(lblConclusion);
+
+            Controls.Add(panel);
+            reloj.Interval = 250;
+            reloj.Tick += delegate { Actualizar(); };
+            FormClosing += delegate { if (prueba != null) prueba.Cancelar(); reloj.Stop(); };
+            AplicarTema();
+            Shown += delegate { BuscarOficiales(); };
+        }
+
+        // La lista de Speedtest depende de tu IP: se pide por el Wi-Fi o cable para que no salgan los de la VPN
+        void BuscarOficiales()
+        {
+            IPAddress origen = chkSinVpn.Checked ? salidaFisica : null;
+            Thread t = new Thread(delegate ()
+            {
+                List<PruebaVelocidad.Servidor> l = PruebaVelocidad.Oficiales(origen, 5);
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        if (l.Count == 0) { lblBuscando.Text = "No se pudo obtener la lista de servidores de Speedtest (solo se medirán los no oficiales)."; return; }
+                        lblBuscando.Text = "Servidores de Speedtest más cercanos añadidos al principio de la lista.";
+                        for (int i = 0; i < l.Count; i++)
+                        {
+                            Opcion o = new Opcion();
+                            o.S = l[i];
+                            lstServidores.Items.Insert(i, o);
+                            lstServidores.SetItemChecked(i, i < 2);
+                        }
+                    });
+                }
+                catch { } // ventana cerrada
+            });
+            t.IsBackground = true;
+            t.Start();
+        }
+
+        void MarcarRegion(string region)
+        {
+            for (int i = 0; i < lstServidores.Items.Count; i++)
+            {
+                if (region == "") lstServidores.SetItemChecked(i, false);
+                else if (((Opcion)lstServidores.Items[i]).S.Region == region) lstServidores.SetItemChecked(i, true);
+            }
+        }
+
+        void IniciarODetener()
+        {
+            if (prueba != null && !prueba.Terminado)
+            {
+                prueba.Cancelar();
+                btnIniciar.Enabled = false;
+                btnIniciar.Text = "Deteniendo...";
+                return;
+            }
+            if (lstServidores.CheckedItems.Count == 0)
+            {
+                MessageBox.Show("Marca al menos un servidor.", Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+            prueba = new PruebaVelocidad();
+            prueba.Segundos = Duraciones[cmbDuracion.SelectedIndex];
+            if (chkSinVpn.Checked) prueba.Origen = salidaFisica = Red.SalidaFisica() ?? salidaFisica;
+            lvResultados.Items.Clear();
+            foreach (Opcion o in lstServidores.CheckedItems)
+            {
+                // copia limpia: así se puede repetir la prueba
+                PruebaVelocidad.Servidor s = PruebaVelocidad.Crear(o.S.Nombre, o.S.Region, o.S.Host, o.S.Puerto, o.S.Bajada, o.S.Subida);
+                s.Oficial = o.S.Oficial;
+                s.Listado = o.S.Listado;
+                prueba.Servidores.Add(s);
+                ListViewItem it = new ListViewItem(s.Region + " · " + s.Nombre);
+                it.SubItems.Add(s.Oficial ? "Speedtest" : "no oficial");
+                for (int c = 2; c < lvResultados.Columns.Count; c++) it.SubItems.Add("");
+                lvResultados.Items.Add(it);
+            }
+            parametros = DateTime.Now.ToString("dd/MM/yyyy HH:mm") + " · " + prueba.Segundos + " s por sentido · " + PruebaVelocidad.Conexiones +
+                         " conexiones · " + (prueba.Origen != null ? "por el Wi-Fi/cable, sin VPN" : "ruta normal");
+            foreach (Control c in opciones) c.Enabled = false;
+            btnCopiar.Enabled = false;
+            btnIniciar.Text = "Detener";
+            lblConclusion.Text = "";
+            barra.Value = 0;
+            prueba.Iniciar();
+            reloj.Start();
+        }
+
+        static string Ms(int v) { return v < 0 ? "–" : v.ToString(); }
+
+        void Actualizar()
+        {
+            if (prueba == null) return;
+            int hechos = 0;
+            for (int i = 0; i < prueba.Servidores.Count; i++)
+            {
+                PruebaVelocidad.Servidor s = prueba.Servidores[i];
+                ListViewItem it = lvResultados.Items[i];
+                bool actual = s == prueba.Actual;
+                if (!actual && (s.Error != null || s.MbpsBajada >= 0)) hechos++;
+                it.SubItems[2].Text = Ms(s.Ping);
+                it.SubItems[3].Text = Ms(s.PingCarga);
+                it.SubItems[4].Text = actual && prueba.Fase == "bajada" ? PruebaVelocidad.Mbps(prueba.MbpsAhora) + "…" :
+                                      s.Error != null && s.MbpsBajada < 0 ? s.Error : PruebaVelocidad.Mbps(s.MbpsBajada);
+                it.SubItems[5].Text = PruebaVelocidad.Mbps(s.PicoBajada);
+                it.SubItems[6].Text = actual && prueba.Fase == "subida" ? PruebaVelocidad.Mbps(prueba.MbpsAhora) + "…" :
+                                      s.Subida == null ? "solo bajada" : PruebaVelocidad.Mbps(s.MbpsSubida);
+                if (s.Error != null && s.MbpsBajada < 0) it.ForeColor = tema.TenueVentana;
+                else if (s.Oficial) it.ForeColor = tema.TextoAviso;
+                else it.ForeColor = tema.Texto;
+            }
+            PruebaVelocidad.Servidor a = prueba.Actual;
+            barra.Value = Math.Min(100, prueba.Servidores.Count > 0 ? hechos * 100 / prueba.Servidores.Count : 0);
+            if (a != null) lblEstado.Text = "Midiendo " + a.Nombre + ": " + a.Estado + (prueba.MbpsAhora > 0 ? " · " + PruebaVelocidad.Mbps(prueba.MbpsAhora) : "") + "...";
+
+            if (prueba.Terminado)
+            {
+                reloj.Stop();
+                Actualizar2();
+            }
+        }
+
+        void Actualizar2()
+        {
+            long total = 0;
+            foreach (PruebaVelocidad.Servidor s in prueba.Servidores) total += s.Bytes;
+            barra.Value = 100;
+            lblEstado.Text = (prueba.Cancelado ? "Prueba detenida." : "Prueba terminada.") + " Datos usados: " + (total / 1000000) + " MB.";
+            foreach (Control c in opciones) c.Enabled = true;
+            btnIniciar.Enabled = true;
+            btnIniciar.Text = "Iniciar prueba";
+            btnCopiar.Enabled = true;
+            Color color;
+            lblConclusion.Text = prueba.Conclusion(out color);
+            lblConclusion.ForeColor = color;
+        }
+
+        void Copiar()
+        {
+            if (prueba == null) return;
+            StringBuilder sb = new StringBuilder();
+            sb.AppendLine("Prueba de velocidad (MonitorPing) · " + parametros);
+            sb.AppendLine();
+            string fmt = "{0,-46} {1,-11} {2,6} {3,10} {4,11} {5,11} {6,11}";
+            sb.AppendLine(string.Format(fmt, "Servidor", "Tipo", "Ping", "Con carga", "Bajada", "Pico", "Subida"));
+            foreach (PruebaVelocidad.Servidor s in prueba.Servidores)
+            {
+                string bajada = s.Error != null && s.MbpsBajada < 0 ? s.Error : PruebaVelocidad.Mbps(s.MbpsBajada);
+                sb.AppendLine(string.Format(fmt, s.Region + " · " + s.Nombre, s.Oficial ? "Speedtest" : "no oficial", Ms(s.Ping), Ms(s.PingCarga),
+                    bajada, PruebaVelocidad.Mbps(s.PicoBajada), s.Subida == null ? "solo bajada" : PruebaVelocidad.Mbps(s.MbpsSubida)));
+            }
+            sb.AppendLine();
+            sb.AppendLine("Conclusión: " + lblConclusion.Text);
+            sb.AppendLine("(ping en ms)");
+            try
+            {
+                Clipboard.SetText(sb.ToString());
+                lblEstado.Text = "Resultados copiados: pégalos donde quieras (Ctrl+V).";
+            }
+            catch { lblEstado.Text = "No se pudo copiar al portapapeles; vuelve a intentarlo."; }
         }
 
         protected override void Dispose(bool disposing)
@@ -5114,7 +6875,9 @@ namespace MonitorPing
             ShowIcon = false;
             StartPosition = FormStartPosition.CenterScreen;
             Font = new Font("Segoe UI", 9f);
-            TopMost = true;
+            // Sin "siempre encima": se comporta como una ventana normal y otra ventana puede taparla.
+            // Al abrirse sí pasa al frente, porque se abre desde la bandeja.
+            Shown += delegate { Activate(); };
             AutoSize = true;
             AutoSizeMode = AutoSizeMode.GrowAndShrink;
 
